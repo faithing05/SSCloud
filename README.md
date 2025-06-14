@@ -3,7 +3,7 @@
 ## Сборка образа
 
 ```python
-{docker build --no-cache -t s3d .}
+docker build --no-cache -t s3d .
 ```
 
 ## Запуск образа
