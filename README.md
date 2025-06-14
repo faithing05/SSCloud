@@ -1,7 +1,7 @@
-####SSCloud
-####Semantic Segmentation Cloud
+SSCloud
+Semantic Segmentation Cloud
 
-###Сборка и запуск
+Сборка и запуск
 
 docker build --no-cache -t s3d .
 
