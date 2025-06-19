@@ -33,13 +33,15 @@ RUN pip install \
 
 # Создаем рабочую директорию и папки для данных
 WORKDIR /app
-RUN mkdir -p CODE DATA MODELS
+
+# Создаем папку для моделей
+RUN mkdir -p /app/models
 
 # # Скачиваем предварительно обученную модель
 # RUN wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth -P /app/CODE/models/
 
-# Копируем предварительно обученную и скачанную модель
-COPY models/sam_vit_h_4b8939.pth /app/MODELS/
+# Копируем рабочую директорию в /app
+COPY . .
 
 # Открываем порт 8888 для JupyterLab
 EXPOSE 8888
