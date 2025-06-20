@@ -1,0 +1,16 @@
+# Папки с кешем и временными файлами
+.ipynb_checkpoints
+.Trash-0
+__pycache__/
+test_files/
+
+# Папки с большими данными и моделями
+models
+Vistino20241014_E57
+
+# Служебные файлы, которые не нужны в образе
+.git
+.gitignore
+.dockerignore
+Dockerfile
+README.md
