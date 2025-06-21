@@ -1,5 +1,8 @@
 .ipynb_checkpoints
 .Trash-0
+data
+all_generated_masks
+classified_masks
 test_files/
 models
 Vistino20241014_E57

@@ -4,12 +4,14 @@ FROM nvidia/cuda:11.7.1-base-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-# Устанавливаем необходимые системные пакеты
+# ИЗМЕНЕНИЕ: Добавлены nodejs и npm, необходимые для сборки расширений JupyterLab
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.10 \
     python3-pip \
     wget \
     git \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Создаем символическую ссылку, чтобы 'python' вызывал 'python3.10'
@@ -28,17 +30,20 @@ RUN pip install \
     git+https://github.com/facebookresearch/segment-anything.git \
     "transformers==4.28.1" \
     sentencepiece \
-    Pillow
+    Pillow \
+    ipywidgets
+
+# ИЗМЕНЕНИЕ: Устанавливаем JavaScript-расширение для JupyterLab, чтобы он мог отображать виджеты
+RUN jupyter labextension install @jupyter-widgets/jupyterlab-manager
 
 # Создаем рабочую директорию и папки для данных
 WORKDIR /app
-RUN mkdir -p CODE DATA MODELS
 
-# # Скачиваем предварительно обученную модель
-# RUN wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth -P /app/MODELS/
+# Создаем папку для моделей
+RUN mkdir -p /app/models
 
-# Копируем предварительно обученную и скачанную модель
-COPY models/sam_vit_h_4b8939.pth /app/MODELS/
+# Копируем рабочую директорию в /app
+COPY . .
 
 # Открываем порт 8888 для JupyterLab
 EXPOSE 8888
