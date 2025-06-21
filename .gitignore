@@ -1,6 +1,7 @@
 .ipynb_checkpoints
 .Trash-0
 data
+CVAT_Workspace
 all_generated_masks
 classified_masks
 test_files/
