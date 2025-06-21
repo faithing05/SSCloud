@@ -33,9 +33,6 @@ RUN pip install \
     Pillow \
     ipywidgets
 
-# ИЗМЕНЕНИЕ: Устанавливаем JavaScript-расширение для JupyterLab, чтобы он мог отображать виджеты
-RUN jupyter labextension install @jupyter-widgets/jupyterlab-manager
-
 # Создаем рабочую директорию и папки для данных
 WORKDIR /app
 
