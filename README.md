@@ -36,6 +36,6 @@ docker-compose up -d
 
 ## Проверка: Подождите пару минут, пока все сервисы запустятся. Вы можете проверить их статус командой:
 ```python
-docker-compose down
+docker-compose ps
 ```
 
