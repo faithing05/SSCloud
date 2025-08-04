@@ -18,15 +18,15 @@ docker run --gpus all -it --rm -p 8888:8888 -v "${PWD}:/app" s3d
 
 
 ## Docker образ CVAT
+Если нет репозитория, скачайте. Откройте терминал и введите.
 
-## Замените путь на ваш
 ```python
-cd C:\Users\YourUser\Documents\Cvat
+git clone https://github.com/cvat-ai/cvat
 ```
 
-## Команда остановит все сервисы CVAT и удалит контейнеры
+Далее переходим по пути CVAT
 ```python
-docker-compose down
+cd cvat
 ```
 
 ## Эта команда скачает (если нужно) свежие образы CVAT и создаст новые, чистые контейнеры. Флаг -d (detached) запускает их в фоновом режиме.
@@ -34,8 +34,27 @@ docker-compose down
 docker-compose up -d
 ```
 
-## Проверка: Подождите пару минут, пока все сервисы запустятся. Вы можете проверить их статус командой:
+## Подождите пару минут, пока все сервисы запустятся. Вы можете проверить их статус командой:
 ```python
 docker-compose ps
 ```
+
+## Заходим внутрь образа и создаем пользователя
+```python
+docker exec -it cvat_server bash
+python manager.py createsuperuser
+exit
+```
+
+## Посмотреть логи и адрес сайта, где находится локальный CVAT. Обычно это http://localhost:8080/. Далее CTRL+C
+```python
+docker logs cvat_server -f
+```
+
+## Команда остановит все сервисы CVAT и удалит контейнеры
+```python
+docker-compose down
+```
+
+
 
