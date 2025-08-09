@@ -4,7 +4,7 @@ FROM nvidia/cuda:11.7.1-base-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-# ИЗМЕНЕНИЕ: Добавлены nodejs и npm, необходимые для сборки расширений JupyterLab
+# Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.10 \
     python3-pip \
@@ -14,13 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Создаем символическую ссылку, чтобы 'python' вызывал 'python3.10'
+# Создаем символическую ссылку
 RUN ln -s /usr/bin/python3.10 /usr/bin/python
 
-# Устанавливаем PyTorch через PIP.
+# Устанавливаем PyTorch
 RUN pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
 
-# Устанавливаем остальные библиотеки через pip
+# Устанавливаем остальные библиотеки
 RUN pip install \
     "numpy<2.0" \
     matplotlib \
@@ -33,14 +33,8 @@ RUN pip install \
     Pillow \
     ipywidgets
 
-# Создаем рабочую директорию и папки для данных
-WORKDIR /app
-
-# Создаем папку для моделей
-RUN mkdir -p /app/models
-
-# Копируем рабочую директорию в /app
-COPY . .
+# Устанавливаем рабочую директорию по умолчанию
+WORKDIR /workspace
 
 # Открываем порт 8888 для JupyterLab
 EXPOSE 8888
