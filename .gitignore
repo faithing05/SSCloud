@@ -7,3 +7,4 @@ classified_masks
 test_files/
 models
 Vistino20241014_E57
+*.json

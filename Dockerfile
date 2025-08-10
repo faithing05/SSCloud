@@ -27,6 +27,7 @@ RUN pip install \
     laspy \
     opencv-python-headless \
     jupyterlab \
+    jupyter-server-terminals \
     git+https://github.com/facebookresearch/segment-anything.git \
     "transformers==4.28.1" \
     sentencepiece \
