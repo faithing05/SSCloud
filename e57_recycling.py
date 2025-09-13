@@ -1,18 +1,21 @@
 import os
+import sys  # Импортирован для работы с аргументами командной строки
 import numpy as np
 from PIL import Image
 import pye57
 import time
 import laspy
 
-# pip install pye57, laspy, laszip
+# Запуск без аргументов: обработка всех .e57 файлов в папке -- python e57_recycling.py
+# Запуск с аргументом: обработка указанного файла -- python e57_recycling.py 10.e57
+# pip install pye57 laspy laszip numpy Pillow
 
 def save_points_to_laz(points, output_path):
     """
     Сохранение точек в LAZ-файл (LAS 1.4) с нормалями, интенсивностью и цветом.
     """
     header = laspy.LasHeader(point_format=2, version="1.4")
-    # Масштаб и смещение 
+    # Масштаб и смещение
     header.scales = np.array([0.000001, 0.000001, 0.000001])
     header.offsets = np.array([0.0, 0.0, 0.0])
 
@@ -184,31 +187,46 @@ def process_e57_file(e57_path):
 
 
 if __name__ == '__main__':
-    # --- ПУТЬ К ПАПКЕ ---
+    # --- ПУТЬ К ПАПКЕ С ФАЙЛАМИ E57 ---
     input_folder = r"F:\Desktop\SSCloud\Vistino20241014_E57"
     # ----------------------------------------
     
-    print(f"Поиск файлов .e57 в папке: {input_folder}")
+    files_to_process = []
+    
+    # Проверяем, был ли передан аргумент командной строки
+    if len(sys.argv) > 1:
+        # Режим одного файла
+        user_input = sys.argv[1]
+        
+        if not user_input.lower().endswith('.e57'):
+            filename = user_input + '.e57'
+        else:
+            filename = user_input
 
-    # Получаем список всех файлов в директории
-    try:
-        files_in_dir = os.listdir(input_folder)
-    except FileNotFoundError:
-        print(f"!!! Ошибка: Папка не найдена: {input_folder}")
-        exit()
+        full_path = os.path.join(input_folder, filename)
+        
+        if os.path.isfile(full_path):
+            files_to_process.append(full_path)
+        else:
+            # Выводим имя файла, которое искали, для большей ясности
+            print(f"!!! Ошибка: Файл '{filename}' не найден в папке '{input_folder}'")
 
-    # Фильтруем список, оставляя только файлы .e57
-    e57_files = [f for f in files_in_dir if f.lower().endswith(".e57")]
-
-    if not e57_files:
-        print("Файлы .e57 в указанной папке не найдены.")
     else:
-        print(f"Найдено {len(e57_files)} файлов для обработки.")
-        # Проходимся циклом по каждому найденному файлу
-        for filename in e57_files:
-            # Собираем полный путь к файлу
-            full_path = os.path.join(input_folder, filename)
-            # Вызываем функцию обработки для этого файла
-            process_e57_file(full_path)
+        # Режим обработки всех файлов в папке
+        print(f"Аргумент не указан. Поиск всех .e57 файлов в папке: {input_folder}")
+        try:
+            for f in os.listdir(input_folder):
+                if f.lower().endswith(".e57"):
+                    files_to_process.append(os.path.join(input_folder, f))
+        except FileNotFoundError:
+            print(f"!!! Ошибка: Папка не найдена: {input_folder}")
+    
+    # --- ЕДИНЫЙ ЦИКЛ ОБРАБОТКИ ---
+    if not files_to_process:
+        print("\nФайлы для обработки не найдены.")
+    else:
+        print(f"\nНайдено {len(files_to_process)} файлов для обработки.")
+        for e57_file in files_to_process:
+            process_e57_file(e57_file)
 
     print("\n=== Обработка всех файлов завершена. ===")
