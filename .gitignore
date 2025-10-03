@@ -1,7 +1,5 @@
 .ipynb_checkpoints
 .Trash-0
-all_generated_masks
-classified_masks
 *.json
 
 # Игнорировать все файлы и папки, начинающиеся подчёркивания
