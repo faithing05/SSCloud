@@ -124,16 +124,8 @@ WANDB_MODE=offline python train.py --epochs 50 --batch-size 1 --scale 0.1 --amp 
 python predict.py -m checkpoints/checkpoint_epoch48.pth -i test_input/1_normals.jpg -o test_output/predicted_mask.png --scale 0.1 --classes 68
 ```
 
-### **Дополнительные скрипты (выполняются на хост-машине)**
-
-**Конвертация тестового датасета:**
-Для подготовки тестовых данных (изображений в `data/test/imgs` и масок в `data/test/masks`) в машиночитаемый формат, выполните в **PowerShell**:
-```powershell
-python _convert_labelme.py
-```
-
 **Визуализация результата:**
 Для наглядного представления результата работы модели (инференса) используйте этот скрипт:
 ```powershell
-python _visualize_prediction.py
+python isualize_prediction.py
 ```
