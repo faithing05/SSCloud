@@ -78,11 +78,6 @@ docker build --no-cache -t s3d .
 docker run --gpus all -it -p 8888:8888 -v "${PWD}:/app" s3d
 ```
 
-*(Примечание: В вашем файле было две одинаковые команды для запуска. Если вторая команда должна была отличаться, например, монтированием дополнительных путей для моделей, её стоит уточнить. Сейчас они идентичны)*.
-```bash
-docker run --gpus all -it --rm -p 8888:8888 -v "${PWD}:/app" s3d
-```
-
 ## **Часть 3: Обучение и инференс модели Unet**
 
 Этот раздел посвящен обучению архитектуры **Unet** на вашем датасете и последующему применению обученной модели для предсказания масок.
@@ -102,7 +97,8 @@ docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}/data
 ```
 
 **Для инференса (применения модели):**
-Эта команда также запускает контейнер, но монтирует папки для тестовых данных, вывода и моделей (`checkpoints`).```bash
+Эта команда также запускает контейнер, но монтирует папки для тестовых данных, вывода и моделей (`checkpoints`).
+```bash
 docker run --rm -it --gpus all -v "${PWD}/data/test/input:/workspace/unet/test_input"  -v "${PWD}/data/test/output:/workspace/unet/test_output" -v "${PWD}/checkpoints:/workspace/unet/checkpoints" milesial/unet
 ```
 
@@ -128,16 +124,8 @@ WANDB_MODE=offline python train.py --epochs 50 --batch-size 1 --scale 0.1 --amp 
 python predict.py -m checkpoints/checkpoint_epoch48.pth -i test_input/1_normals.jpg -o test_output/predicted_mask.png --scale 0.1 --classes 68
 ```
 
-### **Дополнительные скрипты (выполняются на хост-машине)**
-
-**Конвертация тестового датасета:**
-Для подготовки тестовых данных (изображений в `data/test/imgs` и масок в `data/test/masks`) в машиночитаемый формат, выполните в **PowerShell**:
-```powershell
-python _convert_labelme.py
-```
-
 **Визуализация результата:**
 Для наглядного представления результата работы модели (инференса) используйте этот скрипт:
 ```powershell
-python _visualize_prediction.py
+python isualize_prediction.py
 ```
