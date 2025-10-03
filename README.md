@@ -99,7 +99,7 @@ docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}/data
 **Для инференса (применения модели):**
 Эта команда также запускает контейнер, но монтирует папки для тестовых данных, вывода и моделей (`checkpoints`).
 ```bash
-docker run --rm -it --gpus all -v "${PWD}/data/test/input:/workspace/unet/test_input"  -v "${PWD}/data/test/output:/workspace/unet/test_output" -v "${PWD}/checkpoints:/workspace/unet/checkpoints" milesial/unet
+docker run --rm -it --gpus all -v "${PWD}:/workspace/unet" milesial/unet
 ```
 
 ### **Работа внутри контейнера**
@@ -116,12 +116,20 @@ WANDB_MODE=offline python train.py --epochs 50 --batch-size 1 --scale 0.1 --amp 
 ```
     
 **Запуск инференса:**
-Применение обученной модели для предсказания на одном изображении.
+Применение обученной модели для предсказания на одном изображении, на определенной эпохе
 *   `-m checkpoints/checkpoint_epoch48.pth`: путь к файлу с весами модели.
 *   `-i test_input/1_normals.jpg`: входное изображение.
 *   `-o test_output/predicted_mask.png`: путь для сохранения результата.
 ```bash
 python predict.py -m checkpoints/checkpoint_epoch48.pth -i test_input/1_normals.jpg -o test_output/predicted_mask.png --scale 0.1 --classes 68
+```
+
+Применение обученной модели для предсказания на одном изображении, но на всех эпохах. 
+```bash
+cd train
+```
+```bash
+python predict_all_epoch.py -i data/test/input/1_normals.jpg
 ```
 
 **Визуализация результата:**
