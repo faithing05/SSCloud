@@ -11,11 +11,12 @@ const finalActionsDiv = document.getElementById('final-actions');
 const visualizeBtn = document.getElementById('visualize-btn');
 const visualizationContainer = document.getElementById('visualization-container');
 const finalMaskImage = document.getElementById('final-mask-image');
+const exportBtn = document.getElementById('export-btn');
 
 // --- Глобальные переменные ---
 const CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"];
-let statusInterval = null;      // Для таймера опроса статуса
-let currentMaskName = null;     // Хранит имя маски, которая сейчас на экране
+let statusInterval = null;
+let currentMaskName = null;
 
 // --- Основные функции ---
 
@@ -34,7 +35,6 @@ async function pollStatus() {
 
 /**
  * Запрашивает у бэкенда следующую маску для классификации и отображает ее.
- * Бэкенд является "источником правды" о том, какая маска следующая.
  */
 async function showNextMask() {
     statusDiv.innerText = `Загрузка следующей маски...`;
@@ -43,19 +43,15 @@ async function showNextMask() {
         const response = await fetch('/get-next-mask');
         const data = await response.json();
 
-        // Если сервер ответил, что маски закончились
         if (data.done || !data.mask_data) {
             statusDiv.innerText = "Все маски классифицированы! Теперь можно визуализировать результат.";
             classifierDiv.style.display = 'none';
-            finalActionsDiv.style.display = 'block'; // Показываем кнопку "Визуализировать"
-            currentMaskName = null; // Сбрасываем текущую маску
+            finalActionsDiv.style.display = 'block';
+            currentMaskName = null;
             return;
         }
 
-        // Сохраняем имя текущей маски
         currentMaskName = data.mask_data.mask_name;
-
-        // Обновляем интерфейс
         counterEl.innerText = `Осталось масок: ${data.remaining}`;
         statusDiv.innerText = `Классифицируйте маску: ${currentMaskName}`;
         imageEl.src = `data:image/jpeg;base64,${data.mask_data.highlighted_image_b64}`;
@@ -67,12 +63,10 @@ async function showNextMask() {
 
 /**
  * Отправляет на сервер команду классифицировать текущую маску.
- * @param {string} className - Имя класса, присвоенное маске.
  */
 async function classify(className) {
-    if (!currentMaskName) return; // Защита от случайных нажатий
+    if (!currentMaskName) return;
 
-    // Делаем кнопки неактивными на время запроса
     [...classButtonsDiv.children, skipBtn].forEach(btn => btn.disabled = true);
     
     try {
@@ -81,14 +75,10 @@ async function classify(className) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mask_name: currentMaskName, class_name: className })
         });
-        
-        // Сразу запрашиваем следующую маску
         await showNextMask();
-
     } catch (error) {
         statusDiv.innerText = `Ошибка при классификации: ${error}`;
     } finally {
-        // Возвращаем кнопки в активное состояние
         [...classButtonsDiv.children, skipBtn].forEach(btn => btn.disabled = false);
     }
 }
@@ -102,15 +92,12 @@ startBtn.addEventListener('click', async () => {
     const filename = filenameInput.value;
     statusDiv.innerText = 'Запрос на запуск обработки отправлен...';
     startBtn.disabled = true;
-
-    // Сбрасываем интерфейс
     classifierDiv.style.display = 'none';
     finalActionsDiv.style.display = 'none';
     visualizationContainer.style.display = 'none';
     
-    // Запускаем поллинг статуса
     if (statusInterval) clearInterval(statusInterval);
-    statusInterval = setInterval(pollStatus, 1500); // Опрашиваем каждые 1.5 секунды
+    statusInterval = setInterval(pollStatus, 1500);
 
     try {
         const response = await fetch('/start-processing', {
@@ -129,7 +116,7 @@ startBtn.addEventListener('click', async () => {
 
         if (data.total_masks > 0) {
             classifierDiv.style.display = 'block';
-            await showNextMask(); // Запускаем показ первой маски
+            await showNextMask();
         } else {
             statusDiv.innerText = 'Нет масок для классификации. Возможно, они уже были сгенерированы.';
             finalActionsDiv.style.display = 'block';
@@ -168,6 +155,55 @@ visualizeBtn.addEventListener('click', async () => {
         visualizeBtn.disabled = false;
     }
 });
+
+/**
+ * Обработчик нажатия на кнопку "Скачать ZIP для CVAT".
+ */
+exportBtn.addEventListener('click', async () => {
+    statusDiv.innerText = 'Создание ZIP-архива...';
+    exportBtn.disabled = true;
+
+    try {
+        const response = await fetch('/export');
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            statusDiv.innerText = `Ошибка экспорта: ${errorText}`;
+            throw new Error('Export failed');
+        }
+
+        // Этот код заставляет браузер скачать полученный файл
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        // Пытаемся получить имя файла из заголовков ответа
+        const disposition = response.headers.get('content-disposition');
+        let filename = 'archive.zip'; // Имя по умолчанию
+        if (disposition && disposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        
+        statusDiv.innerText = 'ZIP-архив успешно скачан.';
+
+    } catch (error) {
+        console.error("Ошибка при экспорте:", error);
+    } finally {
+        exportBtn.disabled = false;
+    }
+});
+
 
 // Навешиваем обработчик на кнопку "Пропустить"
 skipBtn.addEventListener('click', () => classify('Пропустить'));

@@ -1,6 +1,5 @@
-# app/main.py
-
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
@@ -102,6 +101,24 @@ def visualize_endpoint():
         raise HTTPException(status_code=404, detail="Нет классифицированных масок для визуализации.")
         
     return visualization_data
+
+@app.get("/export")
+def export_endpoint():
+    """Собирает финальный датасет и возвращает ZIP-архив для скачивания."""
+    if not processor_instance:
+        raise HTTPException(status_code=400, detail="Процесс не запущен.")
+    
+    try:
+        # Вызываем метод, который создает и XML, и ZIP
+        zip_filepath = processor_instance.create_final_dataset()
+        if not zip_filepath or not os.path.exists(zip_filepath):
+            raise HTTPException(status_code=404, detail="Не удалось создать или найти ZIP-архив.")
+        
+        # FastAPI автоматически создаст правильные заголовки, чтобы браузер скачал файл
+        return FileResponse(path=zip_filepath, media_type='application/zip', filename=os.path.basename(zip_filepath))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {e}")
 
 # --- Раздача статических файлов ---
 # Эта строка монтирует папку 'static' в корень сайта.
