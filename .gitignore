@@ -1,15 +1,15 @@
 .ipynb_checkpoints
 .Trash-0
-CVAT_Workspace
 all_generated_masks
 classified_masks
-models
 *.json
 
 # Игнорировать все файлы и папки, начинающиеся подчёркивания
 **/_*
 
 # Игнорировать всё содержимое указанных папок
+models/*
+CVAT_Workspace/*
 Vistino20241014_E57/*
 train/checkpoints/*
 train/data/imgs/*
@@ -18,6 +18,8 @@ train/data/test_input/*
 train/data/test_output/*
 
 # НЕ игнорировать файлы .gitkeep, чтобы Git отслеживал сами папки
+!models/.gitkeep
+!CVAT_Workspace/.gitkeep
 !Vistino20241014_E57/.gitkeep
 !train/checkpoints/.gitkeep
 !train/data/imgs/.gitkeep
