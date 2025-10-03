@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+torch==1.13.1+cu117
+torchvision==0.14.1+cu117
+torchaudio==0.13.1
+numpy<2.0
+matplotlib
+laspy
+opencv-python-headless
+python-multipart
+git+https://github.com/facebookresearch/segment-anything.git
+transformers==4.28.1
+sentencepiece
+Pillow

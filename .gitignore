@@ -17,6 +17,7 @@ train/data/test/input/*
 train/data/test/output/*
 
 # НЕ игнорировать файлы .gitkeep, чтобы Git отслеживал сами папки
+!__init__.py
 !models/.gitkeep
 !CVAT_Workspace/.gitkeep
 !Vistino20241014_E57/.gitkeep

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSCloud - Сегментация</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        #controls, #classifier, #status, #final-actions { margin-bottom: 1em; }
+        #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; }
+        .buttons button { margin: 5px; padding: 10px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Интерактивная сегментация SSCloud</h1>
+
+    <div id="controls">
+        <label for="filename">Имя файла панорамы:</label>
+        <input type="text" id="filename" value="1_normals.jpg">
+        <button id="start-btn">Начать обработку</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="classifier" style="display: none;">
+        <h3 id="mask-counter"></h3>
+        <div id="image-container">
+            <img id="highlighted-image" src="" alt="Подсвеченная маска">
+        </div>
+        <div id="class-buttons" class="buttons"></div>
+        <div class="buttons">
+             <button id="skip-btn">Пропустить</button>
+        </div>
+    </div>
+
+    <div id="final-actions" style="display: none;">
+        <button id="visualize-btn" class="buttons">Визуализировать результат</button>
+    </div>
+
+    <div id="visualization-container" style="display: none;">
+        <h2>Итоговая маска сегментации</h2>
+        <div id="image-container">
+            <img id="final-mask-image" src="" alt="Финальная маска">
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,44 +1,34 @@
+# Шаг 1: Используем ваш проверенный базовый образ.
 FROM nvidia/cuda:11.7.1-base-ubuntu22.04
 
 # Установка переменных окружения для автоматической установки
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-# Установка системных зависимостей
+# Шаг 2: Устанавливаем системные зависимости.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.10 \
     python3-pip \
-    wget \
     git \
-    nodejs \
-    npm \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
-# Создаем символическую ссылку
-RUN ln -s /usr/bin/python3.10 /usr/bin/python
+# Создаем символическую ссылку, чтобы 'python' указывал на 'python3'
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
-# Устанавливаем PyTorch
-RUN pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
+# Шаг 3: Устанавливаем рабочую директорию.
+WORKDIR /workspace/SSCloud
 
-# Устанавливаем остальные библиотеки
-RUN pip install \
-    "numpy<2.0" \
-    matplotlib \
-    laspy \
-    opencv-python-headless \
-    jupyterlab \
-    jupyter-server-terminals \
-    git+https://github.com/facebookresearch/segment-anything.git \
-    "transformers==4.28.1" \
-    sentencepiece \
-    Pillow \
-    ipywidgets
+# Шаг 4: Копируем файл с зависимостями и устанавливаем их.
+COPY requirements.txt .
 
-# Устанавливаем рабочую директорию по умолчанию
-WORKDIR /workspace
+# Устанавливаем PyTorch и другие библиотеки. Добавляем --extra-index-url для PyTorch.
+RUN pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu117
 
-# Открываем порт 8888 для JupyterLab
-EXPOSE 8888
+# Шаг 5: Копируем все файлы нашего приложения в рабочую директорию.
+COPY . .
 
-# Команда по умолчанию для запуска контейнера
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
+# Шаг 6: Открываем порт 8000 для FastAPI-сервера.
+EXPOSE 8000
+
+# Шаг 7: Команда для запуска Uvicorn сервера.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
