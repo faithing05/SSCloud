@@ -99,7 +99,7 @@ docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}/data
 **Для инференса (применения модели):**
 Эта команда также запускает контейнер, но монтирует папки для тестовых данных, вывода и моделей (`checkpoints`).
 ```bash
-docker run --rm -it --gpus all -v "${PWD}/data/test/input:/workspace/unet/test_input"  -v "${PWD}/data/test/output:/workspace/unet/test_output" -v "${PWD}/checkpoints:/workspace/unet/checkpoints" milesial/unet
+docker run --rm -it --gpus all -v "${PWD}:/workspace/unet" milesial/unet
 ```
 
 ### **Работа внутри контейнера**
