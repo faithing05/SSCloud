@@ -5,13 +5,13 @@ from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
 # ИСПОЛЬЗОВАНИЕ:
-# python _visualize_prediction.py                          (обработать все маски в папке)
-# python _visualize_prediction.py -f predicted_mask.png    (обработать одну конкретную маску)
+# python visualize_prediction.py                          (обработать все маски в папке)
+# python visualize_prediction.py -f predicted_mask.png    (обработать одну конкретную маску)
 
 # --- ГЛАВНЫЕ НАСТРОЙКИ ---
 
 # 1. Папка, где лежат предсказанные серые маски и куда сохранятся результаты
-IO_DIR = 'data/test/output'
+IO_DIR = 'data/test/output_all_epochs'
 
 # 2. Ваш словарь классов (для названий в легенде)
 CLASS_MAPPING = {
@@ -59,11 +59,7 @@ def create_legend(output_path):
     legend_img = Image.new('RGB', (img_width, img_height), 'white')
     draw = ImageDraw.Draw(legend_img)
     
-    try:
-        font = ImageFont.truetype("arial.ttf", font_size)
-    except IOError:
-        print("Шрифт Arial не найден, используется дефолтный шрифт.")
-        font = ImageFont.load_default()
+    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
 
     y_pos = padding
     for class_name, class_id in sorted(classes_to_show.items(), key=lambda item: item[0]):

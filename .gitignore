@@ -1,6 +1,7 @@
 .ipynb_checkpoints
 .Trash-0
 *.json
+train/data/test/output_all_epochs/*
 
 # Игнорировать все файлы и папки, начинающиеся подчёркивания
 **/_*
@@ -12,8 +13,8 @@ Vistino20241014_E57/*
 train/checkpoints/*
 train/data/imgs/*
 train/data/masks/*
-train/data/test_input/*
-train/data/test_output/*
+train/data/test/input/*
+train/data/test/output/*
 
 # НЕ игнорировать файлы .gitkeep, чтобы Git отслеживал сами папки
 !models/.gitkeep
@@ -22,5 +23,5 @@ train/data/test_output/*
 !train/checkpoints/.gitkeep
 !train/data/imgs/.gitkeep
 !train/data/masks/.gitkeep
-!train/data/test_input/.gitkeep
-!train/data/test_output/.gitkeep
+!train/data/test/input/.gitkeep
+!train/data/test/output/.gitkeep
