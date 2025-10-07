@@ -1,5 +1,5 @@
 # Шаг 1: Используем проверенный базовый образ.
-FROM nvidia/cuda:11.7.1-base-ubuntu22.04
+FROM nvidia/cuda:11.7.1-base-ubuntu22.0
 
 # Установка переменных окружения для автоматической установки
 ENV DEBIAN_FRONTEND=noninteractive
