@@ -12,6 +12,9 @@ const visualizeBtn = document.getElementById('visualize-btn');
 const visualizationContainer = document.getElementById('visualization-container');
 const finalMaskImage = document.getElementById('final-mask-image');
 const exportBtn = document.getElementById('export-btn');
+const e57Select = document.getElementById('e57-select');
+const e57ProcessBtn = document.getElementById('e57-process-btn');
+const e57StatusDiv = document.getElementById('e57-status');
 
 // --- Глобальные переменные ---
 const CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"];
@@ -19,6 +22,76 @@ let statusInterval = null;
 let currentMaskName = null;
 
 // --- Основные функции ---
+
+/**
+ * Загружает список .e57 файлов с сервера и заполняет выпадающий список.
+ */
+async function loadE57Files() {
+    try {
+        const response = await fetch('/get-e57-files');
+        const data = await response.json();
+        e57Select.innerHTML = ''; // Очищаем список
+        if (data.files && data.files.length > 0) {
+            data.files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.innerText = file;
+                e57Select.appendChild(option);
+            });
+        } else {
+            e57StatusDiv.innerText = "В папке Vistino20241014_E57 не найдено .e57 файлов.";
+        }
+    } catch (error) {
+        e57StatusDiv.innerText = `Ошибка загрузки списка файлов: ${error}`;
+    }
+}
+
+/**
+ * Обработчик нажатия на кнопку "Обработать E57".
+ */
+e57ProcessBtn.addEventListener('click', async () => {
+    const selectedFile = e57Select.value;
+    if (!selectedFile) {
+        e57StatusDiv.innerText = "Пожалуйста, выберите файл.";
+        return;
+    }
+
+    e57StatusDiv.innerHTML = `Начинаем обработку файла ${selectedFile}... Это может занять время.`;
+    e57ProcessBtn.disabled = true;
+
+    try {
+        const response = await fetch('/process-e57', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ panorama_filename: selectedFile })
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Выводим логи в столбик
+            e57StatusDiv.innerHTML = `<strong>Обработка завершена успешно!</strong><br>` + result.logs.join('<br>');
+            // Автоматически подставляем имя созданного JPG в поле для сегментации
+            if (result.output_jpg) {
+                filenameInput.value = result.output_jpg;
+            }
+        } else {
+            e57StatusDiv.innerHTML = `<strong>Ошибка!</strong><br>` + result.logs.join('<br>');
+        }
+    } catch (error) {
+        e57StatusDiv.innerText = `Критическая ошибка: ${error}`;
+    } finally {
+        e57ProcessBtn.disabled = false;
+        // Перезагружаем список файлов, чтобы увидеть новые .jpg
+        // (можно добавить такую логику позже)
+    }
+});
+
+
+// --- ЗАПУСК ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ---
+document.addEventListener('DOMContentLoaded', () => {
+    loadE57Files(); // Загружаем список E57 при открытии страницы
+});
 
 /**
  * Периодически запрашивает у сервера текущий статус и отображает его.

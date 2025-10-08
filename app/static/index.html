@@ -3,48 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSCloud - Сегментация</title>
+    <title>SSCloud - Рабочий процесс</title>
     <style>
-        body { font-family: sans-serif; margin: 2em; }
-        #controls, #classifier, #status, #final-actions { margin-bottom: 1em; }
-        #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; }
+        body { font-family: sans-serif; max-width: 1200px; margin: 2em auto; }
+        fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 2em; padding: 1.5em; }
+        legend { font-weight: bold; font-size: 1.2em; padding: 0 0.5em; }
+        #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1em; }
         .buttons button { margin: 5px; padding: 10px; font-size: 16px; cursor: pointer; }
+        #e57-status, #status { margin-top: 1em; padding: 1em; background-color: #f0f0f0; border-radius: 4px; min-height: 20px; }
+        hr { margin: 2em 0; }
     </style>
 </head>
 <body>
-    <h1>Интерактивная сегментация SSCloud</h1>
+    <h1>Рабочий процесс SSCloud</h1>
 
-    <div id="controls">
-        <label for="filename">Имя файла панорамы:</label>
-        <input type="text" id="filename" value="1_normals.jpg">
-        <button id="start-btn">Начать обработку</button>
-    </div>
-
-    <div id="status"></div>
-
-    <div id="classifier" style="display: none;">
-        <h3 id="mask-counter"></h3>
-        <div id="image-container">
-            <img id="highlighted-image" src="" alt="Подсвеченная маска">
+    <!-- ============================================= -->
+    <!--          РАЗДЕЛ ДЛЯ ОБРАБОТКИ E57             -->
+    <!-- ============================================= -->
+    <fieldset>
+        <legend>Шаг 1: Обработка E57 в JPG нормалей</legend>
+        <div id="e57-controls">
+            <label for="e57-select">Выберите .e57 файл:</label>
+            <select id="e57-select"></select>
+            <button id="e57-process-btn">Обработать E57</button>
         </div>
-        <div id="class-buttons" class="buttons"></div>
-        <div class="buttons">
-             <button id="skip-btn">Пропустить</button>
+        <div id="e57-status"></div>
+    </fieldset>
+
+    <hr>
+    
+    <!-- ============================================= -->
+    <!--         РАЗДЕЛ ДЛЯ СЕГМЕНТАЦИИ                -->
+    <!-- ============================================= -->
+    <fieldset>
+        <legend>Шаг 2: Интерактивная сегментация</legend>
+        <div id="controls">
+            <label for="filename">Имя файла панорамы (из Шага 1):</label>
+            <input type="text" id="filename" placeholder="Напр., 3_normals.jpg">
+            <button id="start-btn">Начать обработку</button>
         </div>
-    </div>
 
-    <div id="final-actions" style="display: none;">
-        <button id="visualize-btn" class="buttons">Визуализировать результат</button>
-         <button id="export-btn" class="buttons">Скачать ZIP для CVAT</button> 
-    </div>
+        <div id="status"></div>
 
-    <div id="visualization-container" style="display: none;">
-        <h2>Итоговая маска сегментации</h2>
-        <div id="image-container">
+        <div id="classifier" style="display: none;">
+            <h3 id="mask-counter"></h3>
+            <div id="image-container">
+                <img id="highlighted-image" src="" alt="Подсвеченная маска">
+            </div>
+            <div id="class-buttons" class="buttons"></div>
+            <div class="buttons">
+                 <button id="skip-btn">Пропустить</button>
+            </div>
+        </div>
+    </fieldset>
+
+    <!-- ============================================= -->
+    <!--       РАЗДЕЛ ДЛЯ ЭКСПОРТА И ВИЗУАЛИЗАЦИИ      -->
+    <!-- ============================================= -->
+    <fieldset>
+        <legend>Шаг 3: Экспорт</legend>
+        <div id="final-actions" style="display: none;">
+            <button id="visualize-btn" class="buttons">Визуализировать результат</button>
+            <button id="export-btn" class="buttons">Скачать ZIP для CVAT</button> 
+        </div>
+
+        <div id="visualization-container" style="display: none;">
+            <h2>Итоговая маска сегментации</h2>
             <img id="final-mask-image" src="" alt="Финальная маска">
         </div>
-    </div>
+    </fieldset>
     
+    <!-- Подключение скрипта остается в конце -->
     <script src="script.js"></script>
 </body>
 </html>

@@ -13,3 +13,5 @@ transformers==4.28.1
 sentencepiece
 Pillow
 gdown
+pye57
+laspy

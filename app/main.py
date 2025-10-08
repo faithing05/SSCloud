@@ -120,6 +120,20 @@ def export_endpoint():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {e}")
 
+@app.get("/get-e57-files")
+def get_e57_files_endpoint():
+    """Возвращает список .e57 файлов, доступных для обработки."""
+    files = e57_processor.get_e57_file_list()
+    return {"files": files}
+
+@app.post("/process-e57")
+def process_e57_endpoint(request: StartRequest): # Используем ту же модель StartRequest
+    """Запускает обработку одного .e57 файла."""
+    result = e57_processor.process_e57_file(request.panorama_filename)
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    return result
+
 # --- Раздача статических файлов ---
 # Эта строка монтирует папку 'static' в корень сайта.
 # Теперь, если запросить /index.html, FastAPI отдаст файл app/static/index.html
