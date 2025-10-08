@@ -5,15 +5,19 @@ __pycache__/
 test_files/
 
 # Папки с большими данными и моделями
-Vistino20241014_E57
-CVAT_Workspace
-train
+Vistino20241014_E57/
+CVAT_Workspace/
+train/
 
-# Служебные файлы, которые не нужны в образе
+# Служебные файлы
 .git
 .gitignore
 .dockerignore
-Dockerfile
 README.md
-e57_recycling.py
-XMLunit.py
+
+# Python-артефакты
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.env

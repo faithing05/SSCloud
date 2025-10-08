@@ -12,3 +12,4 @@ git+https://github.com/facebookresearch/segment-anything.git
 transformers==4.28.1
 sentencepiece
 Pillow
+gdown

@@ -101,6 +101,12 @@ docker run --gpus all -p 8000:8000 `  -v "${PWD}\CVAT_Workspace:/workspace/SSClo
 
 После запуска вы увидите в терминале логи загрузки модели и сообщение о том, что сервер запущен на `http://0.0.0.0:8000`.
 
+Эта команда запускает терминал уже в работающем контейнере.
+```powershell
+docker exec -it 99f9f2b998f2 /bin/bash
+```
+* `99f9f2b998f2` - CONTAINER ID, узнается через docekr ps
+
 ### Шаг 4: Использование интерфейса
 
 1.  Откройте веб-браузер (например, Chrome) и перейдите по адресу:
@@ -171,5 +177,5 @@ python predict_all_epoch.py -i data/test/input/1_normals.jpg
 **Визуализация результата:**
 Для наглядного представления результата работы модели (инференса) используйте этот скрипт:
 ```powershell
-python isualize_prediction.py
+python visualize_prediction.py
 ```
