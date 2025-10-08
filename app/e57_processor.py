@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import numpy as np
 from PIL import Image
@@ -15,7 +16,12 @@ def get_e57_file_list():
             print(f"Предупреждение: Папка {E57_INPUT_FOLDER} не найдена.")
             return []
         files = [f for f in os.listdir(E57_INPUT_FOLDER) if f.lower().endswith(".e57")]
-        return sorted(files)
+        
+        def natural_sort_key(s):
+            return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
+        files.sort(key=natural_sort_key)
+
+        return files
     except FileNotFoundError:
         return []
 
