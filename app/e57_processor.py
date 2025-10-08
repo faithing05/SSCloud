@@ -1,15 +1,12 @@
-# app/e57_processor.py
-
 import os
 import time
 import numpy as np
 from PIL import Image
 import pye57
 import laspy
-import laszip # Убедитесь, что laszip установлен для поддержки LAZ
 
 # --- ПУТЬ К ПАПКЕ С ФАЙЛАМИ E57 (внутри контейнера) ---
-E57_INPUT_FOLDER = "Vistino20241014_E57"
+E57_INPUT_FOLDER = "/workspace/SSCloud/Vistino20241014_E57"
 
 def get_e57_file_list():
     """Возвращает список .e57 файлов в рабочей папке."""

@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SSCloud - Рабочий процесс</title>
     <style>
-        body { font-family: sans-serif; max-width: 1200px; margin: 2em auto; }
-        fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 2em; padding: 1.5em; }
+        body { font-family: sans-serif; max-width: 1200px; margin: 2em auto; background-color: #fdfdfd; }
+        fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 2em; padding: 1.5em; background-color: #fff; }
         legend { font-weight: bold; font-size: 1.2em; padding: 0 0.5em; }
         #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1em; }
         .buttons button { margin: 5px; padding: 10px; font-size: 16px; cursor: pointer; }
-        #e57-status, #status { margin-top: 1em; padding: 1em; background-color: #f0f0f0; border-radius: 4px; min-height: 20px; }
-        hr { margin: 2em 0; }
+        #e57-status, #status { margin-top: 1em; padding: 1em; background-color: #f0f0f0; border-radius: 4px; min-height: 20px; white-space: pre-wrap; }
+        hr { margin: 2em 0; border: 0; border-top: 1px solid #eee; }
+        input, select, button { padding: 8px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -23,11 +24,14 @@
     <fieldset>
         <legend>Шаг 1: Обработка E57 в JPG нормалей</legend>
         <div id="e57-controls">
-            <label for="e57-select">Выберите .e57 файл:</label>
-            <select id="e57-select"></select>
-            <button id="e57-process-btn">Обработать E57</button>
+            <label for="e57-select">Выберите .e57 файл(ы) (удерживайте Ctrl для выбора нескольких):</label>
+            <br>
+            <select id="e57-select" multiple size="8" style="width: 250px;"></select>
+            <br><br>
+            <button id="e57-process-selected-btn">Обработать выбранные</button>
+            <button id="e57-process-all-btn">Обработать ВСЕ</button>
         </div>
-        <div id="e57-status"></div>
+        <div id="e57-status">Выберите файл(ы) и нажмите одну из кнопок "Обработать".</div>
     </fieldset>
 
     <hr>

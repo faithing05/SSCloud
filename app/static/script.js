@@ -13,7 +13,8 @@ const visualizationContainer = document.getElementById('visualization-container'
 const finalMaskImage = document.getElementById('final-mask-image');
 const exportBtn = document.getElementById('export-btn');
 const e57Select = document.getElementById('e57-select');
-const e57ProcessBtn = document.getElementById('e57-process-btn');
+const e57ProcessSelectedBtn = document.getElementById('e57-process-selected-btn');
+const e57ProcessAllBtn = document.getElementById('e57-process-all-btn');
 const e57StatusDiv = document.getElementById('e57-status');
 
 // --- Глобальные переменные ---
@@ -47,44 +48,61 @@ async function loadE57Files() {
 }
 
 /**
- * Обработчик нажатия на кнопку "Обработать E57".
+ * Общая функция для запуска обработки E57.
+ * @param {string[]} filesToProcess - Массив имен файлов для обработки.
  */
-e57ProcessBtn.addEventListener('click', async () => {
-    const selectedFile = e57Select.value;
-    if (!selectedFile) {
-        e57StatusDiv.innerText = "Пожалуйста, выберите файл.";
+async function processE57(filesToProcess) {
+    if (!filesToProcess || filesToProcess.length === 0) {
+        e57StatusDiv.innerText = "Файлы для обработки не выбраны.";
         return;
     }
 
-    e57StatusDiv.innerHTML = `Начинаем обработку файла ${selectedFile}... Это может занять время.`;
-    e57ProcessBtn.disabled = true;
+    e57StatusDiv.innerHTML = `Начинаем обработку ${filesToProcess.length} файла(ов)... Это может занять много времени.`;
+    e57ProcessSelectedBtn.disabled = true;
+    e57ProcessAllBtn.disabled = true;
 
     try {
         const response = await fetch('/process-e57', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ panorama_filename: selectedFile })
+            // Отправляем массив имен файлов
+            body: JSON.stringify({ filenames: filesToProcess })
         });
 
         const result = await response.json();
         
         if (response.ok) {
-            // Выводим логи в столбик
-            e57StatusDiv.innerHTML = `<strong>Обработка завершена успешно!</strong><br>` + result.logs.join('<br>');
-            // Автоматически подставляем имя созданного JPG в поле для сегментации
-            if (result.output_jpg) {
-                filenameInput.value = result.output_jpg;
+            e57StatusDiv.innerHTML = `<strong>Обработка завершена!</strong><br><br>` + (result.logs || []).join('<br>');
+            // Предлагаем пользователю имя последнего обработанного JPG
+            const lastLog = result.logs[result.logs.length - 3]; // "JPG нормалей сохранён: X.jpg"
+            if (lastLog && lastLog.includes('.jpg')) {
+                const newJpgName = lastLog.split(': ')[1];
+                filenameInput.value = newJpgName;
             }
         } else {
-            e57StatusDiv.innerHTML = `<strong>Ошибка!</strong><br>` + result.logs.join('<br>');
+            const errorMessage = result.detail || "Неизвестная ошибка сервера.";
+            e57StatusDiv.innerHTML = `<strong>Ошибка!</strong><br>${errorMessage}`;
         }
     } catch (error) {
         e57StatusDiv.innerText = `Критическая ошибка: ${error}`;
     } finally {
-        e57ProcessBtn.disabled = false;
-        // Перезагружаем список файлов, чтобы увидеть новые .jpg
-        // (можно добавить такую логику позже)
+        e57ProcessSelectedBtn.disabled = false;
+        e57ProcessAllBtn.disabled = false;
     }
+}
+
+// Обработчик для кнопки "Обработать выбранные"
+e57ProcessSelectedBtn.addEventListener('click', () => {
+    // Получаем все выбранные опции из select multiple
+    const selectedFiles = Array.from(e57Select.selectedOptions).map(option => option.value);
+    processE57(selectedFiles);
+});
+
+// Обработчик для кнопки "Обработать ВСЕ"
+e57ProcessAllBtn.addEventListener('click', () => {
+    // Получаем абсолютно все опции из списка
+    const allFiles = Array.from(e57Select.options).map(option => option.value);
+    processE57(allFiles);
 });
 
 

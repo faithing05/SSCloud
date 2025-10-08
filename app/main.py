@@ -2,10 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from typing import List
 import os
 
-from .processor import PanoramaProcessor
-from .sam_loader import MASK_GENERATOR
+from . import processor
+from . import sam_loader
+from . import e57_processor
 
 # --- Модели данных для запросов ---
 class StartRequest(BaseModel):
@@ -14,6 +16,9 @@ class StartRequest(BaseModel):
 class ClassifyRequest(BaseModel):
     mask_name: str
     class_name: str
+
+class ProcessRequest(BaseModel):
+    filenames: List[str]
 
 # --- Инициализация FastAPI ---
 app = FastAPI()
@@ -29,19 +34,43 @@ processor_instance = None
 def read_root():
     return {"message": "Сервер SSCloud запущен. Перейдите на /index.html для интерфейса."}
 
+@app.get("/get-e57-files")
+def get_e57_files_endpoint():
+    """Возвращает список .e57 файлов, доступных для обработки."""
+    files = e57_processor.get_e57_file_list()
+    return {"files": files}
+
+@app.post("/process-e57")
+def process_e57_endpoint(request: ProcessRequest): # Используем новую модель
+    """Запускает обработку одного или нескольких .e57 файлов."""
+    full_log = []
+    
+    # Обрабатываем каждый файл из полученного списка
+    for filename in request.filenames:
+        result = e57_processor.process_e57_file(filename)
+        if result.get("logs"):
+            full_log.extend(result["logs"])
+            full_log.append("-" * 20) # Добавляем разделитель
+
+    # Возвращаем общий лог
+    return {"status": "complete", "logs": full_log}
+
 @app.post("/start-processing")
 def start_processing(request: StartRequest):
-    """Инициализирует процессор и запускает генерацию масок."""
     global processor_instance
     try:
-        # Эти параметры можно вынести в конфиг
-        processor_instance = PanoramaProcessor(
+        input_dir = "/workspace/SSCloud/Vistino20241014_E57"
+        output_dir = "/workspace/SSCloud/CVAT_Workspace"
+        
+        # Используем processor.PanoramaProcessor
+        processor_instance = processor.PanoramaProcessor(
             panorama_filename=request.panorama_filename,
-            input_dir="Vistino20241014_E57",
-            output_dir="CVAT_Workspace",
-            class_names=["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"]
+            input_dir=input_dir,
+            output_dir=output_dir,
+            class_names=["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"] # Ваш список классов
         )
-        processor_instance.generate_masks(MASK_GENERATOR)
+        # Используем sam_loader.MASK_GENERATOR
+        processor_instance.generate_masks(sam_loader.MASK_GENERATOR)
         
         masks_to_classify = processor_instance.get_mask_files_to_classify()
         
@@ -119,20 +148,6 @@ def export_endpoint():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {e}")
-
-@app.get("/get-e57-files")
-def get_e57_files_endpoint():
-    """Возвращает список .e57 файлов, доступных для обработки."""
-    files = e57_processor.get_e57_file_list()
-    return {"files": files}
-
-@app.post("/process-e57")
-def process_e57_endpoint(request: StartRequest): # Используем ту же модель StartRequest
-    """Запускает обработку одного .e57 файла."""
-    result = e57_processor.process_e57_file(request.panorama_filename)
-    if result["status"] == "error":
-        raise HTTPException(status_code=500, detail=result["message"])
-    return result
 
 # --- Раздача статических файлов ---
 # Эта строка монтирует папку 'static' в корень сайта.

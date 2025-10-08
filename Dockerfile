@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     wget \
     unrar \
+    nano \
     libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,7 +26,7 @@ ENV PYTHONPATH=/workspace/SSCloud
 COPY requirements.txt .
 
 # Устанавливаем PyTorch и другие библиотеки. Добавляем --extra-index-url для PyTorch.
-RUN pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu117
+RUN pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu117
 
 #Открываем порт 8000 для FastAPI-сервера.
 EXPOSE 8000
