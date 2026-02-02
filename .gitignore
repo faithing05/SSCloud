@@ -15,6 +15,8 @@ train/data/imgs/*
 train/data/masks/*
 train/data/test/input/*
 train/data/test/output/*
+train/wandb/*
+train/data/test/output_with_Attention*/*
 
 # НЕ игнорировать файлы .gitkeep, чтобы Git отслеживал сами папки
 !__init__.py
@@ -26,3 +28,5 @@ train/data/test/output/*
 !train/data/masks/.gitkeep
 !train/data/test/input/.gitkeep
 !train/data/test/output/.gitkeep
+AGENTS.md
+backlog.md
