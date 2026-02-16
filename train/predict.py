@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -68,6 +69,12 @@ def get_args():
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
     parser.add_argument('--save-attention', action='store_true', default=False, help='Save attention maps as heatmaps')
+    parser.add_argument('--use-transformer', action='store_true', default=True, help='Enable transformer bottleneck (default: True)')
+    parser.add_argument('--no-transformer', dest='use_transformer', action='store_false', help='Disable transformer bottleneck')
+    parser.add_argument('--use-attention', action='store_true', default=True, help='Enable attention gates (default: True)')
+    parser.add_argument('--no-attention', dest='use_attention', action='store_false', help='Disable attention gates')
+    parser.add_argument('--results-dir', type=str, default=None, help='Directory containing checkpoints (if not using --model)')
+    parser.add_argument('--epoch', type=int, default=None, help='Epoch to load (requires --results-dir)')
     
     return parser.parse_args()
 
@@ -103,14 +110,37 @@ if __name__ == '__main__':
     in_files = args.input
     out_files = get_output_filenames(args)
 
-    net = HybridSSCloudUNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    # For ablation study: when both transformer and attention are disabled, use original UNet
+    if not args.use_transformer and not args.use_attention:
+        from unet import UNet
+        net = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+        logging.info('Using original UNet (transformer and attention disabled)')
+    else:
+        net = HybridSSCloudUNet(
+            n_channels=3, 
+            n_classes=args.classes, 
+            bilinear=args.bilinear,
+            use_transformer=args.use_transformer,
+            use_attention=args.use_attention
+        )
+        logging.info(f'Using HybridSSCloudUNet (transformer: {args.use_transformer}, attention: {args.use_attention})')
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info(f'Loading model {args.model}')
+    
+    # Determine model path based on arguments
+    if args.results_dir and args.epoch:
+        # Load from results directory
+        checkpoint_path = Path(args.results_dir) / 'checkpoints' / f'checkpoint_epoch{args.epoch}.pth'
+        logging.info(f'Loading checkpoint from results directory: {checkpoint_path}')
+    else:
+        # Use specified model path
+        checkpoint_path = args.model
+        logging.info(f'Loading model {checkpoint_path}')
+    
     logging.info(f'Using device {device}')
 
     net.to(device=device)
-    state_dict = torch.load(args.model, map_location=device)
+    state_dict = torch.load(checkpoint_path, map_location=device)
     mask_values = state_dict.pop('mask_values', [0, 1])
     net.load_state_dict(state_dict)
 

@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import sys
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,13 +16,12 @@ from tqdm import tqdm
 
 import wandb
 from evaluate import evaluate
-from unet import HybridSSCloudUNet
+from unet import HybridSSCloudUNet, UNet
 from utils.data_loading import BasicDataset, CarvanaDataset
 from utils.dice_score import dice_loss
 
 dir_img = Path('./data/imgs/')
 dir_mask = Path('./data/masks/')
-dir_checkpoint = Path('./checkpoints/')
 
 
 def train_model(
@@ -37,7 +37,13 @@ def train_model(
         weight_decay: float = 1e-8,
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
+        detailed_eval: bool = False,
+        results_dir: str = 'results',
 ):
+    # Create checkpoint directory within results directory
+    checkpoint_dir = Path(results_dir) / 'checkpoints'
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    
     # 1. Create dataset
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
@@ -139,10 +145,50 @@ def train_model(
                             if not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
                                 histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
-                        val_score = evaluate(model, val_loader, device, amp)
+                        # Use detailed evaluation on the final epoch
+                        if detailed_eval and epoch == epochs:
+                            val_score, iou_per_class, confusion_mat, inference_time = evaluate(
+                                model, val_loader, device, amp, 
+                                return_detailed=True, 
+                                epoch=epoch, 
+                                save_dir=results_dir
+                            )
+                            
+                            # Log per-class IoU for the final epoch
+                            logging.info(f'Final Epoch {epoch} - Detailed Evaluation:')
+                            logging.info(f'  Dice Score: {val_score:.4f}')
+                            logging.info(f'  Average Inference Time per image: {inference_time:.4f} seconds')
+                            
+                            # Log IoU for each class (limited output for 68 classes)
+                            valid_ious = [iou for iou in iou_per_class if not np.isnan(iou)]
+                            if valid_ious:
+                                mean_iou = np.mean(valid_ious)
+                                logging.info(f'  Mean IoU (excluding NaN): {mean_iou:.4f}')
+                            
+                            # Log first 10 classes and last 10 classes for visibility
+                            logging.info('  Per-Class IoU (first 10 classes):')
+                            for class_id in range(min(10, len(iou_per_class))):
+                                iou = iou_per_class[class_id]
+                                if not np.isnan(iou):
+                                    logging.info(f'    Class {class_id:3d}: IoU = {iou:.4f}')
+                                else:
+                                    logging.info(f'    Class {class_id:3d}: IoU = NaN')
+                            
+                            if len(iou_per_class) > 10:
+                                logging.info('  Per-Class IoU (last 10 classes):')
+                                for class_id in range(max(0, len(iou_per_class)-10), len(iou_per_class)):
+                                    iou = iou_per_class[class_id]
+                                    if not np.isnan(iou):
+                                        logging.info(f'    Class {class_id:3d}: IoU = {iou:.4f}')
+                                    else:
+                                        logging.info(f'    Class {class_id:3d}: IoU = NaN')
+                        else:
+                            val_score = evaluate(model, val_loader, device, amp)
+                        
                         scheduler.step(val_score)
-
-                        logging.info('Validation Dice score: {}'.format(val_score))
+                        
+                        if not (detailed_eval and epoch == epochs):
+                            logging.info('Validation Dice score: {}'.format(val_score))
                         try:
                             experiment.log({
                                 'learning rate': optimizer.param_groups[0]['lr'],
@@ -160,11 +206,11 @@ def train_model(
                             pass
 
         if save_checkpoint:
-            Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             state_dict = model.state_dict()
             state_dict['mask_values'] = dataset.mask_values
-            torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
-            logging.info(f'Checkpoint {epoch} saved!')
+            checkpoint_path = checkpoint_dir / f'checkpoint_epoch{epoch}.pth'
+            torch.save(state_dict, str(checkpoint_path))
+            logging.info(f'Checkpoint {epoch} saved to {checkpoint_path}!')
 
 
 def get_args():
@@ -180,6 +226,12 @@ def get_args():
     parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
+    parser.add_argument('--use-transformer', action='store_true', default=True, help='Enable transformer bottleneck (default: True)')
+    parser.add_argument('--no-transformer', dest='use_transformer', action='store_false', help='Disable transformer bottleneck')
+    parser.add_argument('--use-attention', action='store_true', default=True, help='Enable attention gates (default: True)')
+    parser.add_argument('--no-attention', dest='use_attention', action='store_false', help='Disable attention gates')
+    parser.add_argument('--detailed-eval', action='store_true', default=False, help='Enable detailed evaluation with per-class IoU and confusion matrix')
+    parser.add_argument('--results-dir', type=str, default='results', help='Directory to save evaluation results')
 
     return parser.parse_args()
 
@@ -194,7 +246,20 @@ if __name__ == '__main__':
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-    model = HybridSSCloudUNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    
+    # For ablation study: when both transformer and attention are disabled, use original UNet
+    if not args.use_transformer and not args.use_attention:
+        model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+        logging.info('Using original UNet (transformer and attention disabled)')
+    else:
+        model = HybridSSCloudUNet(
+            n_channels=3, 
+            n_classes=args.classes, 
+            bilinear=args.bilinear,
+            use_transformer=args.use_transformer,
+            use_attention=args.use_attention
+        )
+        logging.info(f'Using HybridSSCloudUNet (transformer: {args.use_transformer}, attention: {args.use_attention})')
     model = model.to(memory_format=torch.channels_last)
 
     logging.info(f'Network:\n'
@@ -218,7 +283,9 @@ if __name__ == '__main__':
             device=device,
             img_scale=args.scale,
             val_percent=args.val / 100,
-            amp=args.amp
+            amp=args.amp,
+            detailed_eval=args.detailed_eval,
+            results_dir=args.results_dir
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! '
@@ -234,5 +301,7 @@ if __name__ == '__main__':
             device=device,
             img_scale=args.scale,
             val_percent=args.val / 100,
-            amp=args.amp
+            amp=args.amp,
+            detailed_eval=args.detailed_eval,
+            results_dir=args.results_dir
         )

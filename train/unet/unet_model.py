@@ -22,37 +22,21 @@ class UNet(nn.Module):
         self.up4 = (Up(128, 64, bilinear))
         self.outc = (OutConv(64, n_classes))
 
-    def forward(self, x, return_attention_maps=False):
+    def forward(self, x):
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
         
-        # Apply transformer bottleneck if enabled
-        if self.use_transformer and self.transformer_bottleneck is not None:
-            x5 = self.transformer_bottleneck(x5)
-        
-        attention_maps = []
-        
-        if return_attention_maps and self.use_attention:
-            x, att1 = self.up1(x5, x4, return_attention=True)
-            x, att2 = self.up2(x, x3, return_attention=True)
-            x, att3 = self.up3(x, x2, return_attention=True)
-            x, att4 = self.up4(x, x1, return_attention=True)
-            attention_maps = [att1, att2, att3, att4]
-        else:
-            x = self.up1(x5, x4)
-            x = self.up2(x, x3)
-            x = self.up3(x, x2)
-            x = self.up4(x, x1)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
         
         logits = self.outc(x)
         
-        if return_attention_maps and self.use_attention:
-            return logits, attention_maps
-        else:
-            return logits
+        return logits
 
 
 
