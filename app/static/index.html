@@ -9,6 +9,8 @@
         fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 2em; padding: 1.5em; background-color: #fff; }
         legend { font-weight: bold; font-size: 1.2em; padding: 0 0.5em; }
         #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1em; }
+        .preview-block { margin-top: 0.5em; }
+        .preview-block h4 { margin: 1em 0 0.3em 0; }
         .buttons button { margin: 5px; padding: 10px; font-size: 16px; cursor: pointer; }
         #e57-status, #status { margin-top: 1em; padding: 1em; background-color: #f0f0f0; border-radius: 4px; min-height: 20px; white-space: pre-wrap; }
         hr { margin: 2em 0; border: 0; border-top: 1px solid #eee; }
@@ -52,7 +54,18 @@
         <div id="classifier" style="display: none;">
             <h3 id="mask-counter"></h3>
             <div id="image-container">
-                <img id="highlighted-image" src="" alt="Подсвеченная маска">
+                <div class="preview-block">
+                    <h4>Оригинальная панорама</h4>
+                    <img id="original-image" src="" alt="Оригинальная панорама">
+                </div>
+                <div class="preview-block">
+                    <h4>Маска</h4>
+                    <img id="mask-image" src="" alt="Текущая маска">
+                </div>
+                <div class="preview-block">
+                    <h4>Панорама с подсветкой маски</h4>
+                    <img id="highlighted-image" src="" alt="Подсвеченная маска">
+                </div>
             </div>
             <div id="class-buttons" class="buttons"></div>
             <div class="buttons">

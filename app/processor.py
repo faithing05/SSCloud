@@ -49,9 +49,9 @@ class PanoramaProcessor:
         print("Панорама успешно загружена.")
         return True
 
-    def _encode_image_to_base64(self, image_np):
+    def _encode_image_to_base64(self, image_np, image_format='.jpg'):
         """Кодирует numpy-массив изображения в строку Base64 для передачи на фронтенд."""
-        _, buffer = cv2.imencode('.jpg', image_np)
+        _, buffer = cv2.imencode(image_format, image_np)
         return base64.b64encode(buffer).decode('utf-8')
 
     def generate_masks(self, sam_mask_generator, max_dimension=4000):
@@ -146,6 +146,8 @@ class PanoramaProcessor:
         
         return {
             "mask_name": mask_filename,
+            "original_panorama_b64": self._encode_image_to_base64(self.original_panorama),
+            "mask_image_b64": self._encode_image_to_base64(mask_image, image_format='.png'),
             "highlighted_image_b64": self._encode_image_to_base64(highlighted_image),
         }
 

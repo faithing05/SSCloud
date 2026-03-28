@@ -80,9 +80,9 @@ docker-compose down
 1.  Откройте терминал (PowerShell, CMD или терминал Linux) в корневой папке проекта `SSCloud`.
 2.  Выполните команду:
     ```bash
-    docker build -t sscloud-service .
+    docker build -t sscloud .
     ```
-*   `-t sscloud-service` присваивает образу удобное имя.
+*   `-t sscloud` присваивает образу удобное имя.
 *   Точка `.` в конце указывает, что сборка должна происходить в текущей директории.
 
 *Примечание: Первая сборка может занять значительное время, так как Docker будет скачивать базовый образ CUDA и устанавливать PyTorch.*
@@ -92,7 +92,7 @@ docker-compose down
 Эта команда запускает ваше веб-приложение. Важно использовать флаги `-v`, чтобы "пробросить" папки с данными и результатами с вашего компьютера внутрь контейнера.
 
 ```powershell
-docker run --gpus all -p 8000:8000 ` -v "${PWD}:/workspace/SSCloud" ` keiretsu/sscloud:v1 
+docker run --gpus all -p 8000:8000 ` -v "${PWD}:/workspace/SSCloud" ` keiretsu/sscloud 
 ```
 *   PowerShell понимает переменную `${PWD}` как "текущая рабочая директория"
 *   `--gpus all`: предоставляет контейнеру доступ к GPU. Если у вас нет GPU, уберите этот флаг.

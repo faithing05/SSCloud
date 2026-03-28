@@ -3,7 +3,9 @@ const startBtn = document.getElementById('start-btn');
 const filenameInput = document.getElementById('filename');
 const statusDiv = document.getElementById('status');
 const classifierDiv = document.getElementById('classifier');
-const imageEl = document.getElementById('highlighted-image');
+const originalImageEl = document.getElementById('original-image');
+const maskImageEl = document.getElementById('mask-image');
+const highlightedImageEl = document.getElementById('highlighted-image');
 const counterEl = document.getElementById('mask-counter');
 const classButtonsDiv = document.getElementById('class-buttons');
 const skipBtn = document.getElementById('skip-btn');
@@ -145,7 +147,9 @@ async function showNextMask() {
         currentMaskName = data.mask_data.mask_name;
         counterEl.innerText = `Осталось масок: ${data.remaining}`;
         statusDiv.innerText = `Классифицируйте маску: ${currentMaskName}`;
-        imageEl.src = `data:image/jpeg;base64,${data.mask_data.highlighted_image_b64}`;
+        originalImageEl.src = `data:image/jpeg;base64,${data.mask_data.original_panorama_b64}`;
+        maskImageEl.src = `data:image/png;base64,${data.mask_data.mask_image_b64}`;
+        highlightedImageEl.src = `data:image/jpeg;base64,${data.mask_data.highlighted_image_b64}`;
 
     } catch (error) {
         statusDiv.innerText = `Ошибка при загрузке следующей маски: ${error}`;

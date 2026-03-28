@@ -17,6 +17,7 @@ train/data/test/input/*
 train/data/test/output/*
 train/wandb/*
 train/data/test/output_with_Attention*/*
+train/results/*
 results_*/
 
 # НЕ игнорировать файлы .gitkeep, чтобы Git отслеживал сами папки
