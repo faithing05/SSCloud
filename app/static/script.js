@@ -18,6 +18,10 @@ const e57Select = document.getElementById('e57-select');
 const e57ProcessSelectedBtn = document.getElementById('e57-process-selected-btn');
 const e57ProcessAllBtn = document.getElementById('e57-process-all-btn');
 const e57StatusDiv = document.getElementById('e57-status');
+const panoramaSelect = document.getElementById('panorama-select');
+const segmentSelectedBtn = document.getElementById('segment-selected-btn');
+const segmentedPanoramaSelect = document.getElementById('segmented-panorama-select');
+const startClassificationBatchBtn = document.getElementById('start-classification-batch-btn');
 
 // --- Глобальные переменные ---
 const CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"];
@@ -46,6 +50,50 @@ async function loadE57Files() {
         }
     } catch (error) {
         e57StatusDiv.innerText = `Ошибка загрузки списка файлов: ${error}`;
+    }
+}
+
+/**
+ * Загружает список JPG-панорам для сегментации.
+ */
+async function loadPanoramaFiles() {
+    try {
+        const response = await fetch('/get-panorama-files');
+        const data = await response.json();
+        panoramaSelect.innerHTML = '';
+
+        if (data.files && data.files.length > 0) {
+            data.files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.innerText = file;
+                panoramaSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        statusDiv.innerText = `Ошибка загрузки панорам: ${error}`;
+    }
+}
+
+/**
+ * Загружает список доступных панорам для пакетной классификации.
+ */
+async function loadSegmentedPanoramas() {
+    try {
+        const response = await fetch('/get-segmented-panoramas');
+        const data = await response.json();
+        segmentedPanoramaSelect.innerHTML = '';
+
+        if (data.files && data.files.length > 0) {
+            data.files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.innerText = file;
+                segmentedPanoramaSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        statusDiv.innerText = `Ошибка загрузки панорам для классификации: ${error}`;
     }
 }
 
@@ -81,6 +129,8 @@ async function processE57(filesToProcess) {
                 const newJpgName = lastLog.split(': ')[1];
                 filenameInput.value = newJpgName;
             }
+
+            await loadPanoramaFiles();
         } else {
             const errorMessage = result.detail || "Неизвестная ошибка сервера.";
             e57StatusDiv.innerHTML = `<strong>Ошибка!</strong><br>${errorMessage}`;
@@ -111,6 +161,8 @@ e57ProcessAllBtn.addEventListener('click', () => {
 // --- ЗАПУСК ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ---
 document.addEventListener('DOMContentLoaded', () => {
     loadE57Files(); // Загружаем список E57 при открытии страницы
+    loadPanoramaFiles();
+    loadSegmentedPanoramas();
 });
 
 /**
@@ -145,7 +197,11 @@ async function showNextMask() {
         }
 
         currentMaskName = data.mask_data.mask_name;
-        counterEl.innerText = `Осталось масок: ${data.remaining}`;
+        const panoramaLabel = data.current_panorama ? `Панорама: ${data.current_panorama}. ` : '';
+        const progressLabel = data.panorama_progress
+            ? `Панорама ${data.panorama_progress.current}/${data.panorama_progress.total}. `
+            : '';
+        counterEl.innerText = `${panoramaLabel}${progressLabel}Осталось масок: ${data.remaining}`;
         statusDiv.innerText = `Классифицируйте маску: ${currentMaskName}`;
         originalImageEl.src = `data:image/jpeg;base64,${data.mask_data.original_panorama_b64}`;
         maskImageEl.src = `data:image/png;base64,${data.mask_data.mask_image_b64}`;
@@ -216,6 +272,8 @@ startBtn.addEventListener('click', async () => {
             statusDiv.innerText = 'Нет масок для классификации. Возможно, они уже были сгенерированы.';
             finalActionsDiv.style.display = 'block';
         }
+
+        await loadSegmentedPanoramas();
     } catch (error) {
         console.error("Ошибка при запуске обработки:", error);
     } finally {
@@ -312,4 +370,83 @@ CLASS_NAMES.forEach(name => {
     button.innerText = name;
     button.addEventListener('click', () => classify(name));
     classButtonsDiv.appendChild(button);
+});
+
+/**
+ * Обработчик пакетной сегментации выбранных панорам.
+ */
+segmentSelectedBtn.addEventListener('click', async () => {
+    const selectedPanoramas = Array.from(panoramaSelect.selectedOptions).map(option => option.value);
+    if (selectedPanoramas.length === 0) {
+        statusDiv.innerText = 'Выберите хотя бы одну панораму для сегментации.';
+        return;
+    }
+
+    segmentSelectedBtn.disabled = true;
+    statusDiv.innerText = `Запущена сегментация ${selectedPanoramas.length} панорам...`;
+
+    if (statusInterval) clearInterval(statusInterval);
+    statusInterval = setInterval(pollStatus, 1500);
+
+    try {
+        const response = await fetch('/start-segmentation-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ panorama_filenames: selectedPanoramas })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            statusDiv.innerText = `Ошибка пакетной сегментации: ${data.detail || 'Неизвестная ошибка'}`;
+            return;
+        }
+
+        const logs = (data.logs || []).join('\n');
+        statusDiv.innerText = `Пакетная сегментация завершена.\n${logs}`;
+        await loadSegmentedPanoramas();
+    } catch (error) {
+        statusDiv.innerText = `Ошибка пакетной сегментации: ${error}`;
+    } finally {
+        clearInterval(statusInterval);
+        segmentSelectedBtn.disabled = false;
+    }
+});
+
+/**
+ * Обработчик запуска пакетной классификации выбранных панорам.
+ */
+startClassificationBatchBtn.addEventListener('click', async () => {
+    const selectedPanoramas = Array.from(segmentedPanoramaSelect.selectedOptions).map(option => option.value);
+    if (selectedPanoramas.length === 0) {
+        statusDiv.innerText = 'Выберите хотя бы одну панораму для классификации.';
+        return;
+    }
+
+    startClassificationBatchBtn.disabled = true;
+    statusDiv.innerText = 'Запуск очереди классификации...';
+    classifierDiv.style.display = 'none';
+    finalActionsDiv.style.display = 'none';
+    visualizationContainer.style.display = 'none';
+
+    try {
+        const response = await fetch('/start-classification-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ panorama_filenames: selectedPanoramas })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            statusDiv.innerText = `Ошибка запуска классификации: ${data.detail || 'Неизвестная ошибка'}`;
+            return;
+        }
+
+        statusDiv.innerText = `Запущена классификация ${data.total_panoramas} панорам.`;
+        classifierDiv.style.display = 'block';
+        await showNextMask();
+    } catch (error) {
+        statusDiv.innerText = `Ошибка запуска классификации: ${error}`;
+    } finally {
+        startClassificationBatchBtn.disabled = false;
+    }
 });

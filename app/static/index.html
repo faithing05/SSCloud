@@ -11,6 +11,9 @@
         #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1em; }
         .preview-block { margin-top: 0.5em; }
         .preview-block h4 { margin: 1em 0 0.3em 0; }
+        .batch-panel { margin-top: 1em; padding: 1em; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+        .batch-panel h4 { margin: 0 0 0.6em 0; }
+        .batch-panel select { width: 280px; }
         .buttons button { margin: 5px; padding: 10px; font-size: 16px; cursor: pointer; }
         #e57-status, #status { margin-top: 1em; padding: 1em; background-color: #f0f0f0; border-radius: 4px; min-height: 20px; white-space: pre-wrap; }
         hr { margin: 2em 0; border: 0; border-top: 1px solid #eee; }
@@ -47,6 +50,24 @@
             <label for="filename">Имя файла панорамы (из Шага 1):</label>
             <input type="text" id="filename" placeholder="Напр., 3_normals.jpg">
             <button id="start-btn">Начать обработку</button>
+        </div>
+
+        <div class="batch-panel">
+            <h4>Пакетная сегментация</h4>
+            <label for="panorama-select">Выберите панорамы для сегментации (Ctrl для нескольких):</label>
+            <br>
+            <select id="panorama-select" multiple size="8"></select>
+            <br><br>
+            <button id="segment-selected-btn">Сегментировать выбранные</button>
+        </div>
+
+        <div class="batch-panel">
+            <h4>Пакетная классификация</h4>
+            <label for="segmented-panorama-select">Выберите панорамы для классификации:</label>
+            <br>
+            <select id="segmented-panorama-select" multiple size="8"></select>
+            <br><br>
+            <button id="start-classification-batch-btn">Начать классификацию выбранных</button>
         </div>
 
         <div id="status"></div>
