@@ -8,7 +8,7 @@ def create_combined_labelme_zip():
     извлекает их содержимое и упаковывает всё в один большой ZIP-архив,
     готовый для загрузки в CVAT.
     """
-    base_path = r'F:\Desktop\SSCloud\CVAT_Workspace'
+    base_path = r'F:\Desktop\SSCloud\Data_Output'
     # Имя для финального архива
     output_zip_filename = 'upload_to_cvat_labelme.zip'
     output_zip_path = os.path.join(base_path, output_zip_filename)

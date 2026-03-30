@@ -8,8 +8,8 @@ train/data/test/output_all_epochs/*
 
 # Игнорировать всё содержимое указанных папок
 models/*
-CVAT_Workspace/*
-Vistino20241014_E57/*
+Data_Output/*
+Data_Input/*
 train/checkpoints/*
 train/data/imgs/*
 train/data/masks/*
@@ -23,8 +23,8 @@ results_*/
 # НЕ игнорировать файлы .gitkeep, чтобы Git отслеживал сами папки
 !__init__.py
 !models/.gitkeep
-!CVAT_Workspace/.gitkeep
-!Vistino20241014_E57/.gitkeep
+!Data_Output/.gitkeep
+!Data_Input/.gitkeep
 !train/checkpoints/.gitkeep
 !train/data/imgs/.gitkeep
 !train/data/masks/.gitkeep

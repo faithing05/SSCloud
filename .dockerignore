@@ -5,8 +5,8 @@ __pycache__/
 test_files/
 
 # Папки с большими данными и моделями
-Vistino20241014_E57/
-CVAT_Workspace/
+Data_Input/
+Data_Output/
 train/
 
 # Служебные файлы

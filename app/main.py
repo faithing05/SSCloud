@@ -29,8 +29,8 @@ class PanoramaBatchRequest(BaseModel):
 # --- Инициализация FastAPI ---
 app = FastAPI()
 
-INPUT_DIR = "/workspace/SSCloud/Vistino20241014_E57"
-OUTPUT_DIR = "/workspace/SSCloud/CVAT_Workspace"
+INPUT_DIR = "/workspace/SSCloud/Data_Input"
+OUTPUT_DIR = "/workspace/SSCloud/Data_Output"
 CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"]
 
 processor_instance: Optional[processor.PanoramaProcessor] = None

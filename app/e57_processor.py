@@ -7,15 +7,15 @@ import pye57
 import laspy
 
 # --- ПУТЬ К ПАПКЕ С ФАЙЛАМИ E57 (внутри контейнера) ---
-E57_INPUT_FOLDER = "/workspace/SSCloud/Vistino20241014_E57"
+DATA_INPUT_FOLDER = "/workspace/SSCloud/Data_Input"
 
 def get_e57_file_list():
     """Возвращает список .e57 файлов в рабочей папке."""
     try:
-        if not os.path.exists(E57_INPUT_FOLDER):
-            print(f"Предупреждение: Папка {E57_INPUT_FOLDER} не найдена.")
+        if not os.path.exists(DATA_INPUT_FOLDER):
+            print(f"Предупреждение: Папка {DATA_INPUT_FOLDER} не найдена.")
             return []
-        files = [f for f in os.listdir(E57_INPUT_FOLDER) if f.lower().endswith(".e57")]
+        files = [f for f in os.listdir(DATA_INPUT_FOLDER) if f.lower().endswith(".e57")]
         
         def natural_sort_key(s):
             return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s)]
@@ -55,7 +55,7 @@ def process_e57_file(e57_filename):
     Функция для полной обработки одного файла .e57.
     Возвращает словарь с логами и результатом.
     """
-    e57_path = os.path.join(E57_INPUT_FOLDER, e57_filename)
+    e57_path = os.path.join(DATA_INPUT_FOLDER, e57_filename)
     log_messages = []
     
     if not os.path.exists(e57_path):

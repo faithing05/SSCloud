@@ -9,7 +9,7 @@ import zipfile
 # --- ГЛАВНЫЕ НАСТРОЙКИ ---
 
 # 1. Путь к вашему рабочему пространству с исходными данными
-CVAT_WORKSPACE_PATH = r'F:\Desktop\SSCloud\CVAT_Workspace'
+CVAT_WORKSPACE_PATH = r'F:\Desktop\SSCloud\Data_Output'
 
 # 2. Пути, куда мы сложим подготовленные данные для U-Net
 TARGET_IMGS_DIR = r'train\data\imgs'

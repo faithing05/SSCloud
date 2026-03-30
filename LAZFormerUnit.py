@@ -14,8 +14,8 @@ import argparse
 # python LAZformerUnit.py 6 - обработка определенного файла по основным директориям
 
 # --- ПУТИ К ОСНОВНЫМ ДИРЕКТОРИЯМ ---
-E57_BASE_DIR = 'Vistino20241014_E57'
-CVAT_BASE_DIR = 'CVAT_Workspace'
+E57_BASE_DIR = 'Data_Input'
+CVAT_BASE_DIR = 'Data_Output'
 
 
 # --- СЛОВАРЬ СООТВЕТСТВИЯ КЛАССОВ ---

@@ -46,7 +46,7 @@ async function loadE57Files() {
                 e57Select.appendChild(option);
             });
         } else {
-            e57StatusDiv.innerText = "В папке Vistino20241014_E57 не найдено .e57 файлов.";
+            e57StatusDiv.innerText = "В папке Data_Input не найдено .e57 файлов.";
         }
     } catch (error) {
         e57StatusDiv.innerText = `Ошибка загрузки списка файлов: ${error}`;

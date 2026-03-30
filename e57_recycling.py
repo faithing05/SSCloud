@@ -188,7 +188,7 @@ def process_e57_file(e57_path):
 
 if __name__ == '__main__':
     # --- ПУТЬ К ПАПКЕ С ФАЙЛАМИ E57 ---
-    input_folder = r"F:\Desktop\SSCloud\Vistino20241014_E57"
+    input_folder = r"F:\Desktop\SSCloud\Data_Input"
     # ----------------------------------------
     
     files_to_process = []
