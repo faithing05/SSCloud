@@ -107,34 +107,54 @@ async function processE57(filesToProcess) {
         return;
     }
 
-    e57StatusDiv.innerHTML = `Начинаем обработку ${filesToProcess.length} файла(ов)... Это может занять много времени.`;
+    const totalFiles = filesToProcess.length;
+    const progressLogs = [];
+
+    const renderE57Status = (isFinished = false) => {
+        const title = isFinished
+            ? `<strong>Обработка завершена!</strong><br><br>`
+            : `Начинаем обработку ${totalFiles} файла(ов)... Это может занять много времени.<br><br>`;
+        e57StatusDiv.innerHTML = title + progressLogs.join('<br>');
+    };
+
+    renderE57Status();
     e57ProcessSelectedBtn.disabled = true;
     e57ProcessAllBtn.disabled = true;
 
     try {
-        const response = await fetch('/process-e57', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // Отправляем массив имен файлов
-            body: JSON.stringify({ filenames: filesToProcess })
-        });
+        for (let index = 0; index < totalFiles; index += 1) {
+            const filename = filesToProcess[index];
+            const response = await fetch('/process-e57', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filenames: [filename] })
+            });
 
-        const result = await response.json();
-        
-        if (response.ok) {
-            e57StatusDiv.innerHTML = `<strong>Обработка завершена!</strong><br><br>` + (result.logs || []).join('<br>');
-            // Предлагаем пользователю имя последнего обработанного JPG
-            const lastLog = result.logs[result.logs.length - 3]; // "JPG нормалей сохранён: X.jpg"
-            if (lastLog && lastLog.includes('.jpg')) {
-                const newJpgName = lastLog.split(': ')[1];
-                filenameInput.value = newJpgName;
+            const result = await response.json();
+            if (!response.ok) {
+                const errorMessage = result.detail || "Неизвестная ошибка сервера.";
+                progressLogs.push(`Ошибка при обработке ${filename}: ${errorMessage}`);
+                renderE57Status();
+                continue;
             }
 
-            await loadPanoramaFiles();
-        } else {
-            const errorMessage = result.detail || "Неизвестная ошибка сервера.";
-            e57StatusDiv.innerHTML = `<strong>Ошибка!</strong><br>${errorMessage}`;
+            const currentLogs = result.logs || [];
+            progressLogs.push(`Файл ${index + 1}/${totalFiles} обработан: ${filename}`);
+            if (currentLogs.length > 0) {
+                progressLogs.push(...currentLogs);
+            }
+            renderE57Status();
+
+            // Предлагаем пользователю имя последнего обработанного JPG
+            const jpgLog = currentLogs.find(log => log.includes('JPG нормалей сохранён:'));
+            if (jpgLog && jpgLog.includes('.jpg')) {
+                const newJpgName = jpgLog.split(': ')[1];
+                filenameInput.value = newJpgName;
+            }
         }
+
+        renderE57Status(true);
+        await loadPanoramaFiles();
     } catch (error) {
         e57StatusDiv.innerText = `Критическая ошибка: ${error}`;
     } finally {
