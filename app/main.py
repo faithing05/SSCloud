@@ -1,5 +1,6 @@
 import os
 import re
+import threading
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -38,6 +39,12 @@ classification_queue: List[str] = []
 classification_index = 0
 segmentation_status = "Процесс не запущен."
 segmentation_results: Dict[str, Dict[str, str]] = {}
+segmentation_batch_running = False
+segmentation_batch_total = 0
+segmentation_batch_processed = 0
+segmentation_batch_logs: List[str] = []
+segmentation_batch_error: Optional[str] = None
+segmentation_lock = threading.Lock()
 
 
 def _natural_sort(values: List[str]) -> List[str]:
@@ -93,6 +100,56 @@ def _set_current_processor_for_queue() -> bool:
 
     processor_instance = _build_processor(classification_queue[classification_index])
     return True
+
+
+def _run_segmentation_batch(panorama_filenames: List[str]) -> None:
+    global segmentation_results
+    global segmentation_status
+    global segmentation_batch_running
+    global segmentation_batch_total
+    global segmentation_batch_processed
+    global segmentation_batch_logs
+    global segmentation_batch_error
+
+    try:
+        for index, panorama_filename in enumerate(panorama_filenames, start=1):
+            with segmentation_lock:
+                segmentation_status = f"Сегментация {index}/{len(panorama_filenames)}: {panorama_filename}"
+
+            try:
+                current_processor = _build_processor(panorama_filename)
+                current_processor.generate_masks(sam_loader.MASK_GENERATOR)
+                mask_count = len(current_processor.get_mask_files_to_classify())
+
+                with segmentation_lock:
+                    segmentation_results[panorama_filename] = {
+                        "status": "success",
+                        "total_masks": str(mask_count),
+                        "message": "Сегментация выполнена",
+                    }
+                    segmentation_batch_logs.append(f"{panorama_filename}: успешно, масок {mask_count}")
+                    segmentation_batch_processed = index
+
+            except Exception as e:
+                with segmentation_lock:
+                    segmentation_results[panorama_filename] = {
+                        "status": "error",
+                        "total_masks": "0",
+                        "message": str(e),
+                    }
+                    segmentation_batch_logs.append(f"{panorama_filename}: ошибка - {e}")
+                    segmentation_batch_processed = index
+
+        with segmentation_lock:
+            segmentation_status = "Пакетная сегментация завершена."
+
+    except Exception as e:
+        with segmentation_lock:
+            segmentation_batch_error = str(e)
+            segmentation_status = f"Ошибка пакетной сегментации: {e}"
+    finally:
+        with segmentation_lock:
+            segmentation_batch_running = False
 
 # --- API Эндпоинты ---
 
@@ -162,44 +219,54 @@ def start_processing(request: StartRequest):
 
 @app.post("/start-segmentation-batch")
 def start_segmentation_batch(request: PanoramaBatchRequest):
-    """Запускает последовательную сегментацию выбранных панорам."""
+    """Запускает асинхронную пакетную сегментацию выбранных панорам."""
     global segmentation_results
     global segmentation_status
+    global segmentation_batch_running
+    global segmentation_batch_total
+    global segmentation_batch_processed
+    global segmentation_batch_logs
+    global segmentation_batch_error
 
     panorama_filenames = _natural_sort(list(dict.fromkeys(request.panorama_filenames)))
     if not panorama_filenames:
         raise HTTPException(status_code=400, detail="Список панорам пуст.")
 
-    segmentation_results = {}
-    batch_logs: List[str] = []
+    with segmentation_lock:
+        if segmentation_batch_running:
+            raise HTTPException(status_code=409, detail="Пакетная сегментация уже выполняется.")
 
-    for index, panorama_filename in enumerate(panorama_filenames, start=1):
-        segmentation_status = f"Сегментация {index}/{len(panorama_filenames)}: {panorama_filename}"
-        try:
-            current_processor = _build_processor(panorama_filename)
-            current_processor.generate_masks(sam_loader.MASK_GENERATOR)
-            mask_count = len(current_processor.get_mask_files_to_classify())
-            segmentation_results[panorama_filename] = {
-                "status": "success",
-                "total_masks": str(mask_count),
-                "message": "Сегментация выполнена",
-            }
-            batch_logs.append(f"{panorama_filename}: успешно, масок {mask_count}")
-        except Exception as e:
-            segmentation_results[panorama_filename] = {
-                "status": "error",
-                "total_masks": "0",
-                "message": str(e),
-            }
-            batch_logs.append(f"{panorama_filename}: ошибка - {e}")
+        segmentation_results = {}
+        segmentation_batch_logs = []
+        segmentation_batch_error = None
+        segmentation_batch_total = len(panorama_filenames)
+        segmentation_batch_processed = 0
+        segmentation_batch_running = True
+        segmentation_status = f"Запущена пакетная сегментация {segmentation_batch_total} панорам..."
 
-    segmentation_status = "Пакетная сегментация завершена."
+    worker = threading.Thread(target=_run_segmentation_batch, args=(panorama_filenames,), daemon=True)
+    worker.start()
+
     return {
-        "message": "Пакетная сегментация завершена.",
-        "processed": len(panorama_filenames),
-        "results": segmentation_results,
-        "logs": batch_logs,
+        "message": "Пакетная сегментация запущена.",
+        "total": segmentation_batch_total,
     }
+
+
+@app.get("/segmentation-batch-status")
+def segmentation_batch_status():
+    """Возвращает прогресс и итоги пакетной сегментации."""
+    with segmentation_lock:
+        return {
+            "running": segmentation_batch_running,
+            "status": segmentation_status,
+            "processed": segmentation_batch_processed,
+            "total": segmentation_batch_total,
+            "results": segmentation_results,
+            "logs": list(segmentation_batch_logs),
+            "error": segmentation_batch_error,
+            "done": (not segmentation_batch_running) and segmentation_batch_total > 0,
+        }
 
 
 @app.post("/start-classification-batch")

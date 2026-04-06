@@ -28,6 +28,47 @@ const CLASS_NAMES = ["Фон", "Земля", "Человек", "Растител
 let statusInterval = null;
 let currentMaskName = null;
 
+
+async function parseApiResponse(response) {
+    const text = await response.text();
+    if (!text) {
+        return {};
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        const preview = text.replace(/\s+/g, ' ').slice(0, 140);
+        throw new Error(`Сервер вернул не JSON (HTTP ${response.status}): ${preview}`);
+    }
+}
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+async function waitForSegmentationBatchCompletion() {
+    while (true) {
+        const response = await fetch('/segmentation-batch-status');
+        const data = await parseApiResponse(response);
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Не удалось получить статус пакетной сегментации.');
+        }
+
+        const progress = data.total ? ` (${data.processed}/${data.total})` : '';
+        statusDiv.innerText = `${data.status || 'Выполняется пакетная сегментация...'}${progress}`;
+
+        if (!data.running) {
+            return data;
+        }
+
+        await sleep(1500);
+    }
+}
+
 // --- Основные функции ---
 
 /**
@@ -405,29 +446,32 @@ segmentSelectedBtn.addEventListener('click', async () => {
     segmentSelectedBtn.disabled = true;
     statusDiv.innerText = `Запущена сегментация ${selectedPanoramas.length} панорам...`;
 
-    if (statusInterval) clearInterval(statusInterval);
-    statusInterval = setInterval(pollStatus, 1500);
-
     try {
-        const response = await fetch('/start-segmentation-batch', {
+        const startResponse = await fetch('/start-segmentation-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ panorama_filenames: selectedPanoramas })
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-            statusDiv.innerText = `Ошибка пакетной сегментации: ${data.detail || 'Неизвестная ошибка'}`;
+        const startData = await parseApiResponse(startResponse);
+        if (!startResponse.ok) {
+            statusDiv.innerText = `Ошибка пакетной сегментации: ${startData.detail || 'Неизвестная ошибка'}`;
             return;
         }
 
-        const logs = (data.logs || []).join('\n');
-        statusDiv.innerText = `Пакетная сегментация завершена.\n${logs}`;
+        statusDiv.innerText = startData.message || 'Пакетная сегментация запущена.';
+
+        const result = await waitForSegmentationBatchCompletion();
+        const logs = (result.logs || []).join('\n');
+        const finalStatus = result.error
+            ? `Пакетная сегментация завершилась с ошибкой: ${result.error}`
+            : 'Пакетная сегментация завершена.';
+
+        statusDiv.innerText = logs ? `${finalStatus}\n${logs}` : finalStatus;
         await loadSegmentedPanoramas();
     } catch (error) {
         statusDiv.innerText = `Ошибка пакетной сегментации: ${error}`;
     } finally {
-        clearInterval(statusInterval);
         segmentSelectedBtn.disabled = false;
     }
 });
