@@ -1,5 +1,5 @@
-#chmod +x run_on_pod_2.sh
 #!/bin/bash
+# chmod +x run_on_pod_2.sh
 set -e
 
 # --- ПЕРЕМЕННЫЕ ---
@@ -7,59 +7,54 @@ GDRIVE_FILE_ID="1WVDuXBvYy9nE9xKmyC7VVQHqNwNMWMFL"
 ARCHIVE_NAME="input_data.rar"
 DATA_INPUT_DIR="Data_Input"
 DATA_OUTPUT_DIR="Data_Output"
-RCLONE_CONFIG="/workspace/rclone_config/rclone.conf"
+RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
 # Имя вашего конфига в rclone (проверьте через rclone listremotes)
 REMOTE_NAME="grive" 
 
-echo "--- 1. Проверка инструментов ---"
-# Устанавливаем только если их нет (apt быстро проверит состояние)
-if ! command -v unrar &> /dev/null || ! command -v zip &> /dev/null; then
-    echo "Установка unrar и zip..."
-    apt-get update -qq && apt-get install -y -qq unrar zip curl > /dev/null
+echo "--- 3. Проверка инструментов ---"
+if ! command -v zip > /dev/null 2>&1; then
+    echo "Утилита zip не найдена. Установка..."
+    apt-get update -qq && apt-get install -y -qq zip > /dev/null
 fi
 
-if ! pip show gdown &> /dev/null; then
-    echo "Установка gdown..."
-    pip install gdown -q
+if ! command -v rclone > /dev/null 2>&1; then
+    echo "ОШИБКА: rclone не найден. Установите rclone и проверьте конфиг: $RCLONE_CONFIG"
+    exit 1
 fi
 
-echo "--- 2. Скачивание входных данных ---"
-# Если папка с картинками уже есть и не пуста — пропускаем всё
-if [ -d "$DATA_INPUT_DIR" ] && [ "$(ls -A $DATA_INPUT_DIR)" ]; then
-    echo "[ПРОПУСК] Папка $DATA_INPUT_DIR уже существует и содержит файлы."
-else
-    # Если папки нет, проверяем сам архив
-    if [ ! -f "$ARCHIVE_NAME" ]; then
-        echo "[СТАРТ] Скачивание архива с Google Drive..."
-        gdown "$GDRIVE_FILE_ID" -O "$ARCHIVE_NAME"
-    else
-        echo "[ПРОПУСК] Архив $ARCHIVE_NAME уже скачан."
+if [ ! -f "$RCLONE_CONFIG" ]; then
+    echo "ОШИБКА: Конфиг rclone не найден: $RCLONE_CONFIG"
+    exit 1
+fi
+
+REMOTE_FOUND=0
+while IFS= read -r remote; do
+    if [ "$remote" = "${REMOTE_NAME}:" ]; then
+        REMOTE_FOUND=1
+        break
     fi
+done < <(rclone --config "$RCLONE_CONFIG" listremotes)
 
-    echo "[СТАРТ] Распаковка архива..."
-    mkdir -p "$DATA_INPUT_DIR"
-    # Распаковываем файлы
-    unrar x -o+ "$ARCHIVE_NAME" 
-    
-    # Если файлы Vyb_*.jpg распаковались в текущую папку, перемещаем их в Data_Input
-    if ls Vyb_*.jpg 1> /dev/null 2>&1; then
-        mv Vyb_*.jpg "$DATA_INPUT_DIR/"
-        echo "Файлы перемещены в $DATA_INPUT_DIR"
-    fi
+if [ "$REMOTE_FOUND" -ne 1 ]; then
+    echo "ОШИБКА: Remote '${REMOTE_NAME}:' не найден в rclone конфиге $RCLONE_CONFIG"
+    exit 1
 fi
-
-echo "--- 3. Обработка данных (место для вашей нейросети) ---"
-# Здесь должен быть запуск вашего кода, который создаст файлы в Data_Output
-# Например: python3 process.py
 
 echo "--- 4. Архивация результатов ---"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 NEW_ZIP="Data_Output_${TIMESTAMP}.zip"
+ZIP_TO_UPLOAD=""
 
 # Проверяем, есть ли результаты для архивации
-if [ -d "$DATA_OUTPUT_DIR" ] && [ "$(ls -A $DATA_OUTPUT_DIR)" ]; then
+if [ -d "$DATA_OUTPUT_DIR" ] && [ "$(ls -A "$DATA_OUTPUT_DIR")" ]; then
     # Проверяем, не лежит ли уже какой-то готовый ZIP (от прошлого неудачного запуска)
-    EXISTING_ZIP=$(ls Data_Output_*.zip 2>/dev/null | head -n 1)
+    EXISTING_ZIP=""
+    for candidate in Data_Output_*.zip; do
+        if [ -f "$candidate" ]; then
+            EXISTING_ZIP="$candidate"
+            break
+        fi
+    done
     
     if [ -f "$EXISTING_ZIP" ]; then
         echo "[ПРОПУСК] Архив $EXISTING_ZIP уже готов к отправке."

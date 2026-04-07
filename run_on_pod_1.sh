@@ -1,5 +1,5 @@
-#chmod +x run_on_pod_2.sh
 #!/bin/bash
+# chmod +x run_on_pod_1.sh
 set -e
 
 # --- ПЕРЕМЕННЫЕ ---
@@ -27,7 +27,7 @@ fi
 
 echo "--- 2. Проверка и подготовка данных ---"
 # Если папка Data_Input уже существует и в ней есть файлы — пропускаем скачивание и распаковку
-if [ -d "$DATA_INPUT_DIR" ] && [ "$(ls -A $DATA_INPUT_DIR 2>/dev/null)" ]; then
+if [ -d "$DATA_INPUT_DIR" ] && [ "$(ls -A "$DATA_INPUT_DIR" 2>/dev/null)" ]; then
     echo "[ПРОПУСК] Папка $DATA_INPUT_DIR уже подготовлена. Ничего делать не нужно."
 else
     echo "Папка $DATA_INPUT_DIR пуста или отсутствует. Начинаем подготовку..."
