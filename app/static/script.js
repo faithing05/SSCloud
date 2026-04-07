@@ -8,6 +8,7 @@ const maskImageEl = document.getElementById('mask-image');
 const highlightedImageEl = document.getElementById('highlighted-image');
 const counterEl = document.getElementById('mask-counter');
 const classButtonsDiv = document.getElementById('class-buttons');
+const undoBtn = document.getElementById('undo-btn');
 const skipBtn = document.getElementById('skip-btn');
 const finalActionsDiv = document.getElementById('final-actions');
 const visualizeBtn = document.getElementById('visualize-btn');
@@ -22,11 +23,19 @@ const panoramaSelect = document.getElementById('panorama-select');
 const segmentSelectedBtn = document.getElementById('segment-selected-btn');
 const segmentedPanoramaSelect = document.getElementById('segmented-panorama-select');
 const startClassificationBatchBtn = document.getElementById('start-classification-batch-btn');
+const visualizationPanoramaSelect = document.getElementById('visualization-panorama-select');
+const refreshVisualizationListBtn = document.getElementById('refresh-visualization-list-btn');
+const refreshReviewBtn = document.getElementById('refresh-review-btn');
+const reviewMaskSelect = document.getElementById('review-mask-select');
+const reviewClassSelect = document.getElementById('review-class-select');
+const applyReclassifyBtn = document.getElementById('apply-reclassify-btn');
+const reviewHighlightedImageEl = document.getElementById('review-highlighted-image');
 
 // --- Глобальные переменные ---
 const CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"];
 let statusInterval = null;
 let currentMaskName = null;
+let reviewItems = [];
 
 
 async function parseApiResponse(response) {
@@ -139,6 +148,37 @@ async function loadSegmentedPanoramas() {
 }
 
 /**
+ * Загружает список панорам, готовых для визуализации финальной маски.
+ */
+async function loadVisualizationPanoramas() {
+    try {
+        const response = await fetch('/get-visualization-panoramas');
+        const data = await response.json();
+        const currentValue = visualizationPanoramaSelect.value;
+        visualizationPanoramaSelect.innerHTML = '';
+
+        if (data.files && data.files.length > 0) {
+            data.files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.innerText = file;
+                visualizationPanoramaSelect.appendChild(option);
+            });
+
+            const hasCurrent = Array.from(visualizationPanoramaSelect.options).some(option => option.value === currentValue);
+            visualizationPanoramaSelect.value = hasCurrent ? currentValue : data.files[0];
+            if (classifierDiv.style.display !== 'block') {
+                finalActionsDiv.style.display = 'block';
+            }
+        } else if (classifierDiv.style.display !== 'block') {
+            finalActionsDiv.style.display = 'none';
+        }
+    } catch (error) {
+        statusDiv.innerText = `Ошибка загрузки панорам для визуализации: ${error}`;
+    }
+}
+
+/**
  * Общая функция для запуска обработки E57.
  * @param {string[]} filesToProcess - Массив имен файлов для обработки.
  */
@@ -224,6 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadE57Files(); // Загружаем список E57 при открытии страницы
     loadPanoramaFiles();
     loadSegmentedPanoramas();
+    loadVisualizationPanoramas();
 });
 
 /**
@@ -279,19 +320,134 @@ async function showNextMask() {
 async function classify(className) {
     if (!currentMaskName) return;
 
-    [...classButtonsDiv.children, skipBtn].forEach(btn => btn.disabled = true);
+    [...classButtonsDiv.children, skipBtn, undoBtn].forEach(btn => btn.disabled = true);
     
     try {
-        await fetch('/classify-mask', {
+        const response = await fetch('/classify-mask', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mask_name: currentMaskName, class_name: className })
         });
+
+        if (!response.ok) {
+            const errorData = await parseApiResponse(response);
+            throw new Error(errorData.detail || 'Ошибка классификации');
+        }
+
         await showNextMask();
+        await loadReviewMasks();
     } catch (error) {
         statusDiv.innerText = `Ошибка при классификации: ${error}`;
     } finally {
+        [...classButtonsDiv.children, skipBtn, undoBtn].forEach(btn => btn.disabled = false);
+    }
+}
+
+async function undoLastClassification() {
+    undoBtn.disabled = true;
+    [...classButtonsDiv.children, skipBtn].forEach(btn => btn.disabled = true);
+
+    try {
+        const response = await fetch('/undo-last-classification', { method: 'POST' });
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+            throw new Error(data.detail || 'Не удалось отменить действие');
+        }
+
+        statusDiv.innerText = `Отменено действие для маски: ${data.mask_name}`;
+        await showNextMask();
+        await loadReviewMasks();
+    } catch (error) {
+        statusDiv.innerText = `Ошибка отмены: ${error}`;
+    } finally {
+        undoBtn.disabled = false;
         [...classButtonsDiv.children, skipBtn].forEach(btn => btn.disabled = false);
+    }
+}
+
+function renderReviewMaskOptions() {
+    reviewMaskSelect.innerHTML = '';
+
+    if (!reviewItems.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.innerText = 'Нет обработанных масок';
+        reviewMaskSelect.appendChild(option);
+        return;
+    }
+
+    reviewItems.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.mask_name;
+        const classLabel = item.status === 'skipped' ? 'Пропущено' : item.class_name;
+        option.innerText = `${item.mask_name} [${classLabel}]`;
+        reviewMaskSelect.appendChild(option);
+    });
+}
+
+async function loadReviewMasks() {
+    try {
+        const response = await fetch('/review-masks');
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+            throw new Error(data.detail || 'Не удалось загрузить список масок для проверки');
+        }
+
+        reviewItems = data.items || [];
+        renderReviewMaskOptions();
+    } catch (error) {
+        statusDiv.innerText = `Ошибка загрузки списка для проверки: ${error}`;
+    }
+}
+
+async function loadReviewPreview(maskName) {
+    if (!maskName) {
+        reviewHighlightedImageEl.src = '';
+        return;
+    }
+
+    try {
+        const response = await fetch(`/mask-preview?mask_name=${encodeURIComponent(maskName)}`);
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+            throw new Error(data.detail || 'Не удалось загрузить превью маски');
+        }
+
+        reviewHighlightedImageEl.src = `data:image/jpeg;base64,${data.mask_data.highlighted_image_b64}`;
+    } catch (error) {
+        statusDiv.innerText = `Ошибка загрузки превью маски: ${error}`;
+    }
+}
+
+async function reclassifySelectedMask() {
+    const selectedMask = reviewMaskSelect.value;
+    const selectedClass = reviewClassSelect.value;
+
+    if (!selectedMask) {
+        statusDiv.innerText = 'Выберите маску в разделе проверки.';
+        return;
+    }
+
+    applyReclassifyBtn.disabled = true;
+    try {
+        const response = await fetch('/reclassify-mask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mask_name: selectedMask, class_name: selectedClass })
+        });
+
+        const data = await parseApiResponse(response);
+        if (!response.ok) {
+            throw new Error(data.detail || 'Не удалось изменить класс маски');
+        }
+
+        statusDiv.innerText = data.message || `Класс маски ${selectedMask} обновлен.`;
+        await loadReviewMasks();
+        await loadReviewPreview(selectedMask);
+    } catch (error) {
+        statusDiv.innerText = `Ошибка переклассификации: ${error}`;
+    } finally {
+        applyReclassifyBtn.disabled = false;
     }
 }
 
@@ -329,6 +485,7 @@ startBtn.addEventListener('click', async () => {
         if (data.total_masks > 0) {
             classifierDiv.style.display = 'block';
             await showNextMask();
+            await loadReviewMasks();
         } else {
             statusDiv.innerText = 'Нет масок для классификации. Возможно, они уже были сгенерированы.';
             finalActionsDiv.style.display = 'block';
@@ -347,11 +504,17 @@ startBtn.addEventListener('click', async () => {
  * Обработчик нажатия на кнопку "Визуализировать".
  */
 visualizeBtn.addEventListener('click', async () => {
+    const selectedPanorama = visualizationPanoramaSelect.value;
+    if (!selectedPanorama) {
+        statusDiv.innerText = 'Выберите панораму для визуализации в Шаге 3.';
+        return;
+    }
+
     statusDiv.innerText = 'Генерация финальной маски...';
     visualizeBtn.disabled = true;
 
     try {
-        const response = await fetch('/visualize');
+        const response = await fetch(`/visualize?panorama_filename=${encodeURIComponent(selectedPanorama)}`);
         if (!response.ok) {
             const errorText = await response.text();
             statusDiv.innerText = `Ошибка визуализации: ${errorText}`;
@@ -362,7 +525,7 @@ visualizeBtn.addEventListener('click', async () => {
         
         finalMaskImage.src = `data:image/png;base64,${data.image_b64}`;
         visualizationContainer.style.display = 'block';
-        statusDiv.innerText = 'Визуализация завершена.';
+        statusDiv.innerText = `Визуализация завершена: ${selectedPanorama}`;
     } catch (error) {
         statusDiv.innerText = `Ошибка: ${error}`;
     } finally {
@@ -374,11 +537,17 @@ visualizeBtn.addEventListener('click', async () => {
  * Обработчик нажатия на кнопку "Скачать ZIP для CVAT".
  */
 exportBtn.addEventListener('click', async () => {
+    const selectedPanorama = visualizationPanoramaSelect.value;
+    if (!selectedPanorama) {
+        statusDiv.innerText = 'Выберите панораму для экспорта в Шаге 3.';
+        return;
+    }
+
     statusDiv.innerText = 'Создание ZIP-архива...';
     exportBtn.disabled = true;
 
     try {
-        const response = await fetch('/export');
+        const response = await fetch(`/export?panorama_filename=${encodeURIComponent(selectedPanorama)}`);
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -409,7 +578,7 @@ exportBtn.addEventListener('click', async () => {
         window.URL.revokeObjectURL(url);
         a.remove();
         
-        statusDiv.innerText = 'ZIP-архив успешно скачан.';
+        statusDiv.innerText = `ZIP-архив успешно скачан: ${selectedPanorama}`;
 
     } catch (error) {
         console.error("Ошибка при экспорте:", error);
@@ -421,6 +590,11 @@ exportBtn.addEventListener('click', async () => {
 
 // Навешиваем обработчик на кнопку "Пропустить"
 skipBtn.addEventListener('click', () => classify('Пропустить'));
+undoBtn.addEventListener('click', undoLastClassification);
+refreshReviewBtn.addEventListener('click', loadReviewMasks);
+refreshVisualizationListBtn.addEventListener('click', loadVisualizationPanoramas);
+reviewMaskSelect.addEventListener('change', event => loadReviewPreview(event.target.value));
+applyReclassifyBtn.addEventListener('click', reclassifySelectedMask);
 
 
 // --- Инициализация при загрузке страницы ---
@@ -431,7 +605,19 @@ CLASS_NAMES.forEach(name => {
     button.innerText = name;
     button.addEventListener('click', () => classify(name));
     classButtonsDiv.appendChild(button);
+
+    const reviewOption = document.createElement('option');
+    reviewOption.value = name;
+    reviewOption.innerText = name;
+    reviewClassSelect.appendChild(reviewOption);
 });
+
+const skipReviewOption = document.createElement('option');
+skipReviewOption.value = 'Пропустить';
+skipReviewOption.innerText = 'Пропустить';
+reviewClassSelect.appendChild(skipReviewOption);
+
+loadReviewMasks();
 
 /**
  * Обработчик пакетной сегментации выбранных панорам.
@@ -469,6 +655,7 @@ segmentSelectedBtn.addEventListener('click', async () => {
 
         statusDiv.innerText = logs ? `${finalStatus}\n${logs}` : finalStatus;
         await loadSegmentedPanoramas();
+        await loadVisualizationPanoramas();
     } catch (error) {
         statusDiv.innerText = `Ошибка пакетной сегментации: ${error}`;
     } finally {
@@ -508,6 +695,8 @@ startClassificationBatchBtn.addEventListener('click', async () => {
         statusDiv.innerText = `Запущена классификация ${data.total_panoramas} панорам.`;
         classifierDiv.style.display = 'block';
         await showNextMask();
+        await loadReviewMasks();
+        await loadVisualizationPanoramas();
     } catch (error) {
         statusDiv.innerText = `Ошибка запуска классификации: ${error}`;
     } finally {

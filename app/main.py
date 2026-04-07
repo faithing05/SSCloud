@@ -3,7 +3,7 @@ import re
 import threading
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -26,6 +26,11 @@ class ProcessRequest(BaseModel):
 
 class PanoramaBatchRequest(BaseModel):
     panorama_filenames: List[str]
+
+
+class ReclassifyRequest(BaseModel):
+    mask_name: str
+    class_name: str
 
 # --- Инициализация FastAPI ---
 app = FastAPI()
@@ -89,6 +94,29 @@ def _list_segmented_panoramas() -> List[str]:
                 segmented.append(panorama_name)
 
     return segmented
+
+
+def _list_visualizable_panoramas() -> List[str]:
+    if not os.path.exists(OUTPUT_DIR):
+        return []
+
+    visualizable = []
+    for panorama_name in _list_available_panoramas():
+        panorama_base = os.path.splitext(panorama_name)[0]
+        classified_dir = os.path.join(OUTPUT_DIR, panorama_base, "2_classified_masks")
+        if not os.path.exists(classified_dir):
+            continue
+
+        has_classified_masks = False
+        for _, _, filenames in os.walk(classified_dir):
+            if any(filename.endswith(".png") for filename in filenames):
+                has_classified_masks = True
+                break
+
+        if has_classified_masks:
+            visualizable.append(panorama_name)
+
+    return visualizable
 
 
 def _set_current_processor_for_queue() -> bool:
@@ -174,6 +202,12 @@ def get_panorama_files_endpoint():
 def get_segmented_panoramas_endpoint():
     """Возвращает список всех доступных панорам для пакетной классификации."""
     return {"files": _list_available_panoramas()}
+
+
+@app.get("/get-visualization-panoramas")
+def get_visualization_panoramas_endpoint():
+    """Возвращает список панорам, готовых для визуализации финальной маски."""
+    return {"files": _list_visualizable_panoramas()}
 
 @app.post("/process-e57")
 def process_e57_endpoint(request: ProcessRequest): # Используем новую модель
@@ -346,6 +380,65 @@ def classify_mask_endpoint(request: ClassifyRequest):
     
     return {"message": f"Маска {request.mask_name} обработана."}
 
+
+@app.post("/undo-last-classification")
+def undo_last_classification_endpoint():
+    """Отменяет последнее действие классификации/переклассификации."""
+    if not processor_instance:
+        raise HTTPException(status_code=400, detail="Процесс не запущен.")
+
+    result = processor_instance.undo_last_classification()
+    if result["status"] == "error":
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return result
+
+
+@app.get("/classification-state")
+def classification_state_endpoint():
+    """Возвращает прогресс классификации и глубину истории действий."""
+    if not processor_instance:
+        raise HTTPException(status_code=400, detail="Процесс не запущен.")
+
+    return processor_instance.get_classification_state()
+
+
+@app.get("/review-masks")
+def review_masks_endpoint():
+    """Возвращает список уже обработанных масок для ручной проверки."""
+    if not processor_instance:
+        raise HTTPException(status_code=400, detail="Процесс не запущен.")
+
+    return {
+        "items": processor_instance.get_review_items(),
+    }
+
+
+@app.get("/mask-preview")
+def mask_preview_endpoint(mask_name: str = Query(..., description="Имя маски")):
+    """Возвращает превью любой маски по имени (pending/classified/skipped)."""
+    if not processor_instance:
+        raise HTTPException(status_code=400, detail="Процесс не запущен.")
+
+    preview = processor_instance.get_mask_for_frontend(mask_name)
+    if not preview:
+        raise HTTPException(status_code=404, detail="Маска не найдена.")
+
+    return {"mask_data": preview}
+
+
+@app.post("/reclassify-mask")
+def reclassify_mask_endpoint(request: ReclassifyRequest):
+    """Позволяет изменить класс уже обработанной маски."""
+    if not processor_instance:
+        raise HTTPException(status_code=400, detail="Процесс не запущен.")
+
+    result = processor_instance.classify_mask(request.mask_name, request.class_name, record_history=True)
+    if result["status"] == "error":
+        raise HTTPException(status_code=404, detail=result["message"])
+
+    return {"message": f"Маска {request.mask_name} переклассифицирована."}
+
 @app.get("/status")
 def get_status():
     """Возвращает текущий статус обработки."""
@@ -354,26 +447,34 @@ def get_status():
     return {"status": segmentation_status}
 
 @app.get("/visualize")
-def visualize_endpoint():
+def visualize_endpoint(panorama_filename: Optional[str] = Query(default=None, description="Имя панорамы")):
     """Собирает и визуализирует финальную маску."""
-    if not processor_instance:
+    current_processor = processor_instance
+    if panorama_filename:
+        current_processor = _build_processor(panorama_filename)
+
+    if not current_processor:
         raise HTTPException(status_code=400, detail="Процесс не запущен.")
     
-    visualization_data = processor_instance.visualize_final_mask()
+    visualization_data = current_processor.visualize_final_mask()
     if not visualization_data:
         raise HTTPException(status_code=404, detail="Нет классифицированных масок для визуализации.")
         
     return visualization_data
 
 @app.get("/export")
-def export_endpoint():
+def export_endpoint(panorama_filename: Optional[str] = Query(default=None, description="Имя панорамы")):
     """Собирает финальный датасет и возвращает ZIP-архив для скачивания."""
-    if not processor_instance:
+    current_processor = processor_instance
+    if panorama_filename:
+        current_processor = _build_processor(panorama_filename)
+
+    if not current_processor:
         raise HTTPException(status_code=400, detail="Процесс не запущен.")
     
     try:
         # Вызываем метод, который создает и XML, и ZIP
-        zip_filepath = processor_instance.create_final_dataset()
+        zip_filepath = current_processor.create_final_dataset()
         if not zip_filepath or not os.path.exists(zip_filepath):
             raise HTTPException(status_code=404, detail="Не удалось создать или найти ZIP-архив.")
         

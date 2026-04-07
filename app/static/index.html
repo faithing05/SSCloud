@@ -8,13 +8,16 @@
         body { font-family: sans-serif; max-width: 1200px; margin: 2em auto; background-color: #fdfdfd; }
         fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 2em; padding: 1.5em; background-color: #fff; }
         legend { font-weight: bold; font-size: 1.2em; padding: 0 0.5em; }
-        #image-container img, #visualization-container img { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1em; }
+        #image-container img, #visualization-container img, #review-highlighted-image { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1em; }
         .preview-block { margin-top: 0.5em; }
         .preview-block h4 { margin: 1em 0 0.3em 0; }
         .batch-panel { margin-top: 1em; padding: 1em; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
         .batch-panel h4 { margin: 0 0 0.6em 0; }
         .batch-panel select { width: 280px; }
         .buttons button { margin: 5px; padding: 10px; font-size: 16px; cursor: pointer; }
+        .review-panel { margin-top: 1em; padding: 1em; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+        .review-panel select { min-width: 320px; }
+        #review-highlighted-image { width: 100%; max-height: none; object-fit: contain; }
         #e57-status, #status { margin-top: 1em; padding: 1em; background-color: #f0f0f0; border-radius: 4px; min-height: 20px; white-space: pre-wrap; }
         hr { margin: 2em 0; border: 0; border-top: 1px solid #eee; }
         input, select, button { padding: 8px; font-size: 14px; }
@@ -90,7 +93,27 @@
             </div>
             <div id="class-buttons" class="buttons"></div>
             <div class="buttons">
+                 <button id="undo-btn">Отменить последнее действие</button>
                  <button id="skip-btn">Пропустить</button>
+            </div>
+
+            <div class="review-panel">
+                <h4>Проверка и исправление классификации</h4>
+                <button id="refresh-review-btn">Обновить список обработанных масок</button>
+                <div style="margin-top: 0.8em;">
+                    <label for="review-mask-select">Выберите маску для проверки:</label>
+                    <br>
+                    <select id="review-mask-select" size="8"></select>
+                </div>
+                <div class="preview-block">
+                    <h4>Превью выбранной маски</h4>
+                    <img id="review-highlighted-image" src="" alt="Превью выбранной маски">
+                </div>
+                <div style="margin-top: 0.8em;">
+                    <label for="review-class-select">Новый класс:</label>
+                    <select id="review-class-select"></select>
+                    <button id="apply-reclassify-btn">Применить новый класс</button>
+                </div>
             </div>
         </div>
     </fieldset>
@@ -100,6 +123,15 @@
     <!-- ============================================= -->
     <fieldset>
         <legend>Шаг 3: Экспорт</legend>
+        <div class="batch-panel" id="visualization-panel">
+            <h4>Визуализация результата</h4>
+            <label for="visualization-panorama-select">Выберите панораму для визуализации:</label>
+            <br>
+            <select id="visualization-panorama-select" size="6"></select>
+            <br><br>
+            <button id="refresh-visualization-list-btn">Обновить список панорам</button>
+        </div>
+
         <div id="final-actions" style="display: none;">
             <button id="visualize-btn" class="buttons">Визуализировать результат</button>
             <button id="export-btn" class="buttons">Скачать ZIP для CVAT</button> 
