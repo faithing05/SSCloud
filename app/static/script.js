@@ -537,17 +537,12 @@ visualizeBtn.addEventListener('click', async () => {
  * Обработчик нажатия на кнопку "Скачать ZIP для CVAT".
  */
 exportBtn.addEventListener('click', async () => {
-    const selectedPanorama = visualizationPanoramaSelect.value;
-    if (!selectedPanorama) {
-        statusDiv.innerText = 'Выберите панораму для экспорта в Шаге 3.';
-        return;
-    }
-
-    statusDiv.innerText = 'Создание ZIP-архива...';
+    visualizationPanoramaSelect.selectedIndex = -1;
+    statusDiv.innerText = 'Создание общего ZIP-архива по всем панорамам...';
     exportBtn.disabled = true;
 
     try {
-        const response = await fetch(`/export?panorama_filename=${encodeURIComponent(selectedPanorama)}`);
+        const response = await fetch('/export');
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -578,7 +573,7 @@ exportBtn.addEventListener('click', async () => {
         window.URL.revokeObjectURL(url);
         a.remove();
         
-        statusDiv.innerText = `ZIP-архив успешно скачан: ${selectedPanorama}`;
+        statusDiv.innerText = 'ZIP-архив успешно скачан: все панорамы из директории.';
 
     } catch (error) {
         console.error("Ошибка при экспорте:", error);

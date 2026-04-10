@@ -1,6 +1,7 @@
 import os
 import re
 import threading
+import zipfile
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -117,6 +118,37 @@ def _list_visualizable_panoramas() -> List[str]:
             visualizable.append(panorama_name)
 
     return visualizable
+
+
+def _build_combined_cvat_archive(panorama_filenames: List[str]) -> str:
+    if not panorama_filenames:
+        raise ValueError("Нет панорам для экспорта.")
+
+    combined_zip_path = os.path.join(OUTPUT_DIR, "upload_to_cvat_labelme.zip")
+    exported_pairs = 0
+
+    with zipfile.ZipFile(combined_zip_path, "w", zipfile.ZIP_DEFLATED) as combined_zip:
+        for panorama_filename in panorama_filenames:
+            current_processor = _build_processor(panorama_filename)
+            try:
+                source_zip_path = current_processor.create_final_dataset()
+            except ValueError:
+                continue
+
+            if not source_zip_path or not os.path.exists(source_zip_path):
+                continue
+
+            with zipfile.ZipFile(source_zip_path, "r") as source_zip:
+                for member in source_zip.infolist():
+                    if member.is_dir():
+                        continue
+                    combined_zip.writestr(member.filename, source_zip.read(member.filename))
+            exported_pairs += 1
+
+    if exported_pairs == 0:
+        raise ValueError("Нет экспортированных панорам: проверьте, что для них есть классифицированные маски.")
+
+    return combined_zip_path
 
 
 def _set_current_processor_for_queue() -> bool:
@@ -464,23 +496,16 @@ def visualize_endpoint(panorama_filename: Optional[str] = Query(default=None, de
 
 @app.get("/export")
 def export_endpoint(panorama_filename: Optional[str] = Query(default=None, description="Имя панорамы")):
-    """Собирает финальный датасет и возвращает ZIP-архив для скачивания."""
-    current_processor = processor_instance
-    if panorama_filename:
-        current_processor = _build_processor(panorama_filename)
-
-    if not current_processor:
-        raise HTTPException(status_code=400, detail="Процесс не запущен.")
-    
+    """Создает единый ZIP для всех панорам в директории (параметр panorama_filename игнорируется)."""
     try:
-        # Вызываем метод, который создает и XML, и ZIP
-        zip_filepath = current_processor.create_final_dataset()
-        if not zip_filepath or not os.path.exists(zip_filepath):
-            raise HTTPException(status_code=404, detail="Не удалось создать или найти ZIP-архив.")
-        
-        # FastAPI автоматически создаст правильные заголовки, чтобы браузер скачал файл
+        _ = panorama_filename
+        panoramas_for_export = _list_available_panoramas()
+        zip_filepath = _build_combined_cvat_archive(panoramas_for_export)
+
         return FileResponse(path=zip_filepath, media_type='application/zip', filename=os.path.basename(zip_filepath))
 
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при экспорте: {e}")
 
