@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import sys
+from typing import Dict, List
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,17 +12,134 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 from pathlib import Path
 from torch import optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
 from tqdm import tqdm
 
 import wandb
 from evaluate import evaluate
 from unet import HybridSSCloudUNet, UNet
-from utils.data_loading import BasicDataset, CarvanaDataset
+from utils.data_loading import BasicDataset, CarvanaDataset, load_image
 from utils.dice_score import dice_loss
 
 dir_img = Path('./data/imgs/')
 dir_mask = Path('./data/masks/')
+
+
+def _map_mask_to_class_indices(mask_array: np.ndarray, mask_values: List) -> np.ndarray:
+    mapped_mask = np.zeros(mask_array.shape[:2], dtype=np.int64)
+    for class_idx, mask_value in enumerate(mask_values):
+        if mask_array.ndim == 2:
+            mapped_mask[mask_array == mask_value] = class_idx
+        else:
+            mapped_mask[(mask_array == mask_value).all(-1)] = class_idx
+    return mapped_mask
+
+
+def _compute_split_class_stats(dataset, subset_indices: List[int], num_classes: int) -> Dict[str, np.ndarray]:
+    pixel_counts = np.zeros(num_classes, dtype=np.int64)
+    image_counts = np.zeros(num_classes, dtype=np.int64)
+    image_presence: List[np.ndarray] = []
+
+    for dataset_idx in tqdm(subset_indices, desc='Analyzing class distribution', unit='img', leave=False):
+        image_id = dataset.ids[dataset_idx]
+        mask_file = list(dataset.mask_dir.glob(image_id + dataset.mask_suffix + '.*'))
+        if len(mask_file) != 1:
+            raise RuntimeError(f'Expected exactly one mask for {image_id}, found {len(mask_file)}')
+
+        mask_array = np.asarray(load_image(mask_file[0]))
+
+        mapped_mask = _map_mask_to_class_indices(mask_array, dataset.mask_values)
+        class_hist = np.bincount(mapped_mask.reshape(-1), minlength=num_classes)
+
+        pixel_counts += class_hist
+        present_classes = class_hist > 0
+        image_counts += present_classes.astype(np.int64)
+        image_presence.append(present_classes)
+
+    return {
+        'pixel_counts': pixel_counts,
+        'image_counts': image_counts,
+        'image_presence': np.stack(image_presence) if image_presence else np.zeros((0, num_classes), dtype=bool),
+    }
+
+
+def _build_class_weights(pixel_counts: np.ndarray) -> torch.Tensor:
+    class_weights = np.zeros_like(pixel_counts, dtype=np.float32)
+    nonzero_mask = pixel_counts > 0
+
+    if nonzero_mask.any():
+        median_count = float(np.median(pixel_counts[nonzero_mask]))
+        class_weights[nonzero_mask] = median_count / pixel_counts[nonzero_mask]
+
+    class_weights = np.clip(class_weights, 0.0, 10.0)
+    positive = class_weights > 0
+    if positive.any():
+        class_weights[positive] = class_weights[positive] / class_weights[positive].mean()
+
+    return torch.tensor(class_weights, dtype=torch.float32)
+
+
+def _build_oversampling_weights(pixel_counts: np.ndarray, image_presence: np.ndarray) -> torch.Tensor:
+    sample_weights = np.ones(image_presence.shape[0], dtype=np.float64)
+    if image_presence.shape[0] == 0:
+        return torch.tensor(sample_weights, dtype=torch.double)
+
+    total_pixels = float(pixel_counts.sum())
+    class_freq = np.divide(pixel_counts, total_pixels, out=np.zeros_like(pixel_counts, dtype=np.float64), where=total_pixels > 0)
+    class_rarity = np.zeros_like(class_freq, dtype=np.float64)
+    nonzero = class_freq > 0
+    class_rarity[nonzero] = 1.0 / class_freq[nonzero]
+
+    # Ignore background when oversampling rare semantic classes
+    if class_rarity.shape[0] > 0:
+        class_rarity[0] = 0.0
+
+    for idx in range(image_presence.shape[0]):
+        present = np.where(image_presence[idx])[0]
+        present = present[present != 0]
+        if present.size > 0:
+            sample_weights[idx] = float(np.mean(class_rarity[present]))
+
+    sample_weights = np.clip(sample_weights, 1e-6, None)
+    sample_weights = sample_weights / sample_weights.mean()
+    return torch.tensor(sample_weights, dtype=torch.double)
+
+
+def _save_class_distribution(
+        results_dir: str,
+        train_stats: Dict[str, np.ndarray],
+        val_stats: Dict[str, np.ndarray],
+        mask_values: List,
+) -> None:
+    output_path = Path(results_dir) / 'class_distribution.txt'
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _format_split(name: str, stats: Dict[str, np.ndarray], total_images: int) -> List[str]:
+        lines = [f'{name} split (images={total_images})']
+        total_pixels = int(stats['pixel_counts'].sum())
+        lines.append(f'Total pixels: {total_pixels}')
+        lines.append('ClassIdx | RawValue | Pixels | Pixel% | ImagesWithClass')
+
+        for class_idx, raw_value in enumerate(mask_values):
+            pixels = int(stats['pixel_counts'][class_idx])
+            image_count = int(stats['image_counts'][class_idx])
+            pixel_pct = (100.0 * pixels / total_pixels) if total_pixels > 0 else 0.0
+            lines.append(f'{class_idx:7d} | {str(raw_value):8s} | {pixels:7d} | {pixel_pct:6.3f}% | {image_count:15d}')
+
+        lines.append('')
+        return lines
+
+    train_images = int(train_stats['image_presence'].shape[0])
+    val_images = int(val_stats['image_presence'].shape[0])
+
+    content_lines = []
+    content_lines.extend(_format_split('Train', train_stats, train_images))
+    content_lines.extend(_format_split('Validation', val_stats, val_images))
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(content_lines))
+
+    logging.info(f'Class distribution report saved to {output_path}')
 
 
 def train_model(
@@ -39,6 +157,9 @@ def train_model(
         gradient_clipping: float = 1.0,
         detailed_eval: bool = False,
         results_dir: str = 'results',
+        use_class_weights: bool = True,
+        use_rare_oversampling: bool = True,
+        save_class_distribution: bool = True,
 ):
     # Create checkpoint directory within results directory
     checkpoint_dir = Path(results_dir) / 'checkpoints'
@@ -55,16 +176,39 @@ def train_model(
     n_train = len(dataset) - n_val
     train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
+    train_stats = _compute_split_class_stats(dataset, list(train_set.indices), model.n_classes)
+    val_stats = _compute_split_class_stats(dataset, list(val_set.indices), model.n_classes)
+
+    if save_class_distribution:
+        _save_class_distribution(results_dir, train_stats, val_stats, dataset.mask_values)
+
+    class_weights = None
+    if model.n_classes > 1 and use_class_weights:
+        class_weights = _build_class_weights(train_stats['pixel_counts']).to(device)
+        logging.info(f'Using weighted CrossEntropyLoss with weights: {class_weights.cpu().numpy().round(4).tolist()}')
+
+    train_sampler = None
+    if use_rare_oversampling:
+        sample_weights = _build_oversampling_weights(train_stats['pixel_counts'], train_stats['image_presence'])
+        train_sampler = WeightedRandomSampler(
+            weights=sample_weights,
+            num_samples=len(sample_weights),
+            replacement=True,
+        )
+        logging.info('Using rare-class oversampling with WeightedRandomSampler')
+
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
-    train_loader = DataLoader(train_set, shuffle=True, **loader_args)
+    train_loader = DataLoader(train_set, shuffle=train_sampler is None, sampler=train_sampler, **loader_args)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
     experiment = wandb.init(project='U-Net', resume='allow', anonymous='must')
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
-             val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp)
+             val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp,
+             use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
+             save_class_distribution=save_class_distribution)
     )
 
     logging.info(f'''Starting training:
@@ -84,7 +228,7 @@ def train_model(
                               lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
-    criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
+    criterion = nn.CrossEntropyLoss(weight=class_weights) if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
 
     # 5. Begin training
@@ -232,6 +376,12 @@ def get_args():
     parser.add_argument('--no-attention', dest='use_attention', action='store_false', help='Disable attention gates')
     parser.add_argument('--detailed-eval', action='store_true', default=False, help='Enable detailed evaluation with per-class IoU and confusion matrix')
     parser.add_argument('--results-dir', type=str, default='results', help='Directory to save evaluation results')
+    parser.add_argument('--use-class-weights', action='store_true', default=True, help='Enable weighted CrossEntropy loss (default: True)')
+    parser.add_argument('--no-class-weights', dest='use_class_weights', action='store_false', help='Disable weighted CrossEntropy loss')
+    parser.add_argument('--use-rare-oversampling', action='store_true', default=True, help='Enable rare-class oversampling (default: True)')
+    parser.add_argument('--no-rare-oversampling', dest='use_rare_oversampling', action='store_false', help='Disable rare-class oversampling')
+    parser.add_argument('--save-class-distribution', action='store_true', default=True, help='Save train/val class distribution report (default: True)')
+    parser.add_argument('--no-save-class-distribution', dest='save_class_distribution', action='store_false', help='Disable class distribution report')
 
     return parser.parse_args()
 
@@ -285,7 +435,10 @@ if __name__ == '__main__':
             val_percent=args.val / 100,
             amp=args.amp,
             detailed_eval=args.detailed_eval,
-            results_dir=args.results_dir
+            results_dir=args.results_dir,
+            use_class_weights=args.use_class_weights,
+            use_rare_oversampling=args.use_rare_oversampling,
+            save_class_distribution=args.save_class_distribution,
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! '
@@ -303,5 +456,8 @@ if __name__ == '__main__':
             val_percent=args.val / 100,
             amp=args.amp,
             detailed_eval=args.detailed_eval,
-            results_dir=args.results_dir
+            results_dir=args.results_dir,
+            use_class_weights=args.use_class_weights,
+            use_rare_oversampling=args.use_rare_oversampling,
+            save_class_distribution=args.save_class_distribution,
         )
