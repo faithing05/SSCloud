@@ -1,0 +1,26 @@
+# git/service
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+# experiments/logs
+wandb/
+results*/
+runs/
+logs/
+*.log
+# data and artifacts
+data/
+checkpoints/
+test_input/
+test_output/
+*.pth
+*.pt
+*.ckpt
+# env/cache
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
