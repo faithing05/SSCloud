@@ -16,3 +16,5 @@ gdown
 pye57
 laspy
 laszip
+seaborn
+scikit-learn
