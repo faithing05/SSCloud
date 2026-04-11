@@ -1,15 +1,10 @@
 import argparse
 import logging
-import os
-import random
-import sys
 from typing import Dict, List
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.transforms as transforms
-import torchvision.transforms.functional as TF
 from pathlib import Path
 from torch import optim
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
@@ -42,11 +37,15 @@ def _compute_split_class_stats(dataset, subset_indices: List[int], num_classes: 
 
     for dataset_idx in tqdm(subset_indices, desc='Analyzing class distribution', unit='img', leave=False):
         image_id = dataset.ids[dataset_idx]
-        mask_file = list(dataset.mask_dir.glob(image_id + dataset.mask_suffix + '.*'))
-        if len(mask_file) != 1:
-            raise RuntimeError(f'Expected exactly one mask for {image_id}, found {len(mask_file)}')
+        if hasattr(dataset, 'mask_files') and image_id in dataset.mask_files:
+            mask_path = dataset.mask_files[image_id]
+        else:
+            mask_file = list(dataset.mask_dir.glob(image_id + dataset.mask_suffix + '.*'))
+            if len(mask_file) != 1:
+                raise RuntimeError(f'Expected exactly one mask for {image_id}, found {len(mask_file)}')
+            mask_path = mask_file[0]
 
-        mask_array = np.asarray(load_image(mask_file[0]))
+        mask_array = np.asarray(load_image(mask_path))
 
         mapped_mask = _map_mask_to_class_indices(mask_array, dataset.mask_values)
         class_hist = np.bincount(mapped_mask.reshape(-1), minlength=num_classes)
@@ -160,6 +159,9 @@ def train_model(
         use_class_weights: bool = True,
         use_rare_oversampling: bool = True,
         save_class_distribution: bool = True,
+        num_workers: int = 4,
+        persistent_workers: bool = True,
+        prefetch_factor: int = 2,
 ):
     # Create checkpoint directory within results directory
     checkpoint_dir = Path(results_dir) / 'checkpoints'
@@ -198,7 +200,16 @@ def train_model(
         logging.info('Using rare-class oversampling with WeightedRandomSampler')
 
     # 3. Create data loaders
-    loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
+    effective_num_workers = max(0, num_workers)
+    loader_args = dict(
+        batch_size=batch_size,
+        num_workers=effective_num_workers,
+        pin_memory=(device.type == 'cuda'),
+    )
+    if effective_num_workers > 0:
+        loader_args['persistent_workers'] = persistent_workers
+        loader_args['prefetch_factor'] = max(1, prefetch_factor)
+
     train_loader = DataLoader(train_set, shuffle=train_sampler is None, sampler=train_sampler, **loader_args)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
@@ -207,8 +218,9 @@ def train_model(
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp,
-             use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
-             save_class_distribution=save_class_distribution)
+              use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
+             save_class_distribution=save_class_distribution, num_workers=effective_num_workers,
+             persistent_workers=persistent_workers, prefetch_factor=prefetch_factor)
     )
 
     logging.info(f'''Starting training:
@@ -221,6 +233,8 @@ def train_model(
         Device:          {device.type}
         Images scaling:  {img_scale}
         Mixed Precision: {amp}
+        Num workers:     {effective_num_workers}
+        Persistent wrk:  {persistent_workers if effective_num_workers > 0 else False}
     ''')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
@@ -234,7 +248,7 @@ def train_model(
     # 5. Begin training
     for epoch in range(1, epochs + 1):
         model.train()
-        epoch_loss = 0
+        skipped_batches = 0
         with tqdm(total=n_train, desc=f'Epoch {epoch}/{epochs}', unit='img') as pbar:
             for batch in train_loader:
                 images, true_masks = batch['image'], batch['mask']
@@ -244,8 +258,8 @@ def train_model(
                     f'but loaded images have {images.shape[1]} channels. Please check that ' \
                     'the images are loaded correctly.'
 
-                images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
-                true_masks = true_masks.to(device=device, dtype=torch.long)
+                images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last, non_blocking=True)
+                true_masks = true_masks.to(device=device, dtype=torch.long, non_blocking=True)
 
                 with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
                     masks_pred = model(images)
@@ -260,6 +274,28 @@ def train_model(
                             multiclass=True
                         )
 
+                if not torch.isfinite(loss):
+                    skipped_batches += 1
+                    pred_min = float(torch.nan_to_num(masks_pred.detach(), nan=0.0, posinf=0.0, neginf=0.0).min().item())
+                    pred_max = float(torch.nan_to_num(masks_pred.detach(), nan=0.0, posinf=0.0, neginf=0.0).max().item())
+                    mask_min = int(true_masks.min().item())
+                    mask_max = int(true_masks.max().item())
+                    logging.warning(
+                        'Non-finite loss detected (epoch=%s, step=%s, pred_min=%.4f, pred_max=%.4f, mask_min=%s, mask_max=%s). '
+                        'Skipping optimizer step.',
+                        epoch,
+                        global_step,
+                        pred_min,
+                        pred_max,
+                        mask_min,
+                        mask_max,
+                    )
+                    optimizer.zero_grad(set_to_none=True)
+                    pbar.update(images.shape[0])
+                    global_step += 1
+                    pbar.set_postfix(**{'loss (batch)': float('nan')})
+                    continue
+
                 optimizer.zero_grad(set_to_none=True)
                 grad_scaler.scale(loss).backward()
                 grad_scaler.unscale_(optimizer)
@@ -269,7 +305,6 @@ def train_model(
 
                 pbar.update(images.shape[0])
                 global_step += 1
-                epoch_loss += loss.item()
                 experiment.log({
                     'train loss': loss.item(),
                     'step': global_step,
@@ -277,77 +312,58 @@ def train_model(
                 })
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 
-                # Evaluation round
-                division_step = (n_train // (5 * batch_size))
-                if division_step > 0:
-                    if global_step % division_step == 0:
-                        histograms = {}
-                        for tag, value in model.named_parameters():
-                            tag = tag.replace('/', '.')
-                            if not (torch.isinf(value) | torch.isnan(value)).any():
-                                histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
-                            if not (torch.isinf(value.grad) | torch.isnan(value.grad)).any():
-                                histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
+        # Run validation once per epoch to reduce training overhead
+        if detailed_eval and epoch == epochs:
+            val_score, iou_per_class, confusion_mat, inference_time = evaluate(
+                model, val_loader, device, amp,
+                return_detailed=True,
+                epoch=epoch,
+                save_dir=results_dir
+            )
 
-                        # Use detailed evaluation on the final epoch
-                        if detailed_eval and epoch == epochs:
-                            val_score, iou_per_class, confusion_mat, inference_time = evaluate(
-                                model, val_loader, device, amp, 
-                                return_detailed=True, 
-                                epoch=epoch, 
-                                save_dir=results_dir
-                            )
-                            
-                            # Log per-class IoU for the final epoch
-                            logging.info(f'Final Epoch {epoch} - Detailed Evaluation:')
-                            logging.info(f'  Dice Score: {val_score:.4f}')
-                            logging.info(f'  Average Inference Time per image: {inference_time:.4f} seconds')
-                            
-                            # Log IoU for each class (limited output for 68 classes)
-                            valid_ious = [iou for iou in iou_per_class if not np.isnan(iou)]
-                            if valid_ious:
-                                mean_iou = np.mean(valid_ious)
-                                logging.info(f'  Mean IoU (excluding NaN): {mean_iou:.4f}')
-                            
-                            # Log first 10 classes and last 10 classes for visibility
-                            logging.info('  Per-Class IoU (first 10 classes):')
-                            for class_id in range(min(10, len(iou_per_class))):
-                                iou = iou_per_class[class_id]
-                                if not np.isnan(iou):
-                                    logging.info(f'    Class {class_id:3d}: IoU = {iou:.4f}')
-                                else:
-                                    logging.info(f'    Class {class_id:3d}: IoU = NaN')
-                            
-                            if len(iou_per_class) > 10:
-                                logging.info('  Per-Class IoU (last 10 classes):')
-                                for class_id in range(max(0, len(iou_per_class)-10), len(iou_per_class)):
-                                    iou = iou_per_class[class_id]
-                                    if not np.isnan(iou):
-                                        logging.info(f'    Class {class_id:3d}: IoU = {iou:.4f}')
-                                    else:
-                                        logging.info(f'    Class {class_id:3d}: IoU = NaN')
-                        else:
-                            val_score = evaluate(model, val_loader, device, amp)
-                        
-                        scheduler.step(val_score)
-                        
-                        if not (detailed_eval and epoch == epochs):
-                            logging.info('Validation Dice score: {}'.format(val_score))
-                        try:
-                            experiment.log({
-                                'learning rate': optimizer.param_groups[0]['lr'],
-                                'validation Dice': val_score,
-                                'images': wandb.Image(images[0].cpu()),
-                                'masks': {
-                                    'true': wandb.Image(true_masks[0].float().cpu()),
-                                    'pred': wandb.Image(masks_pred.argmax(dim=1)[0].float().cpu()),
-                                },
-                                'step': global_step,
-                                'epoch': epoch,
-                                **histograms
-                            })
-                        except:
-                            pass
+            logging.info(f'Final Epoch {epoch} - Detailed Evaluation:')
+            logging.info(f'  Dice Score: {val_score:.4f}')
+            logging.info(f'  Average Inference Time per image: {inference_time:.4f} seconds')
+
+            valid_ious = [iou for iou in iou_per_class if not np.isnan(iou)]
+            if valid_ious:
+                mean_iou = np.mean(valid_ious)
+                logging.info(f'  Mean IoU (excluding NaN): {mean_iou:.4f}')
+
+            logging.info('  Per-Class IoU (first 10 classes):')
+            for class_id in range(min(10, len(iou_per_class))):
+                iou = iou_per_class[class_id]
+                if not np.isnan(iou):
+                    logging.info(f'    Class {class_id:3d}: IoU = {iou:.4f}')
+                else:
+                    logging.info(f'    Class {class_id:3d}: IoU = NaN')
+
+            if len(iou_per_class) > 10:
+                logging.info('  Per-Class IoU (last 10 classes):')
+                for class_id in range(max(0, len(iou_per_class) - 10), len(iou_per_class)):
+                    iou = iou_per_class[class_id]
+                    if not np.isnan(iou):
+                        logging.info(f'    Class {class_id:3d}: IoU = {iou:.4f}')
+                    else:
+                        logging.info(f'    Class {class_id:3d}: IoU = NaN')
+        else:
+            val_score = evaluate(model, val_loader, device, amp)
+
+        scheduler.step(val_score)
+        logging.info(f'Validation Dice score: {val_score}')
+
+        if skipped_batches > 0:
+            logging.warning(f'Skipped {skipped_batches} batch(es) in epoch {epoch} due to non-finite loss')
+
+        try:
+            experiment.log({
+                'learning rate': optimizer.param_groups[0]['lr'],
+                'validation Dice': val_score,
+                'epoch': epoch,
+                'step': global_step,
+            })
+        except Exception:
+            pass
 
         if save_checkpoint:
             state_dict = model.state_dict()
@@ -382,6 +398,10 @@ def get_args():
     parser.add_argument('--no-rare-oversampling', dest='use_rare_oversampling', action='store_false', help='Disable rare-class oversampling')
     parser.add_argument('--save-class-distribution', action='store_true', default=True, help='Save train/val class distribution report (default: True)')
     parser.add_argument('--no-save-class-distribution', dest='save_class_distribution', action='store_false', help='Disable class distribution report')
+    parser.add_argument('--num-workers', type=int, default=4, help='DataLoader worker processes (set 0 for debugging)')
+    parser.add_argument('--persistent-workers', action='store_true', default=True, help='Keep DataLoader workers alive between epochs (default: True)')
+    parser.add_argument('--no-persistent-workers', dest='persistent_workers', action='store_false', help='Disable persistent DataLoader workers')
+    parser.add_argument('--prefetch-factor', type=int, default=2, help='Batches prefetched per DataLoader worker')
 
     return parser.parse_args()
 
@@ -439,6 +459,9 @@ if __name__ == '__main__':
             use_class_weights=args.use_class_weights,
             use_rare_oversampling=args.use_rare_oversampling,
             save_class_distribution=args.save_class_distribution,
+            num_workers=args.num_workers,
+            persistent_workers=args.persistent_workers,
+            prefetch_factor=args.prefetch_factor,
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! '
@@ -460,4 +483,7 @@ if __name__ == '__main__':
             use_class_weights=args.use_class_weights,
             use_rare_oversampling=args.use_rare_oversampling,
             save_class_distribution=args.save_class_distribution,
+            num_workers=args.num_workers,
+            persistent_workers=args.persistent_workers,
+            prefetch_factor=args.prefetch_factor,
         )

@@ -26,21 +26,23 @@ function Run-Experiment {
 
 # --- СПИСОК ЭКСПЕРИМЕНТОВ ---
 
+$CommonArgs = "--use-transformer --use-attention --amp --detailed-eval --epochs 50 --batch-size 1 --scale 0.1 --classes 9 --num-workers 8 --prefetch-factor 4 --persistent-workers"
+
 # A) Baseline
 Run-Experiment -Name "A_Baseline" `
-    -Command "python train.py --use-transformer --use-attention --amp --detailed-eval --epochs 50 --batch-size 1 --scale 0.1 --classes 9 --no-class-weights --no-rare-oversampling --results-dir results_ablation_A_baseline"
+    -Command "python train.py $CommonArgs --no-class-weights --no-rare-oversampling --results-dir results_ablation_A_baseline"
 
 # B) Только class weights
 Run-Experiment -Name "B_Weights" `
-    -Command "python train.py --use-transformer --use-attention --amp --detailed-eval --epochs 50 --batch-size 1 --scale 0.1 --classes 9 --use-class-weights --no-rare-oversampling --results-dir results_ablation_B_weights"
+    -Command "python train.py $CommonArgs --use-class-weights --no-rare-oversampling --results-dir results_ablation_B_weights"
 
 # C) Только oversampling
 Run-Experiment -Name "C_Sampler" `
-    -Command "python train.py --use-transformer --use-attention --amp --detailed-eval --epochs 50 --batch-size 1 --scale 0.1 --classes 9 --no-class-weights --use-rare-oversampling --results-dir results_ablation_C_sampler"
+    -Command "python train.py $CommonArgs --no-class-weights --use-rare-oversampling --results-dir results_ablation_C_sampler"
 
 # D) Weights + oversampling
 Run-Experiment -Name "D_Both" `
-    -Command "python train.py --use-transformer --use-attention --amp --detailed-eval --epochs 50 --batch-size 1 --scale 0.1 --classes 9 --use-class-weights --use-rare-oversampling --results-dir results_ablation_D_both"
+    -Command "python train.py $CommonArgs --use-class-weights --use-rare-oversampling --results-dir results_ablation_D_both"
 
 # --- ФИНАЛ ---
 $GlobalTimer.Stop()

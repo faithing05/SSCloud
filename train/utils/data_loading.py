@@ -1,16 +1,16 @@
 import logging
+import warnings
 import numpy as np
 import torch
 from PIL import Image
-from functools import lru_cache
-from functools import partial
-from itertools import repeat
 from multiprocessing import Pool
-from os import listdir
-from os.path import splitext, isfile, join
+from os.path import splitext
 from pathlib import Path
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
+
+warnings.filterwarnings('once', category=Image.DecompressionBombWarning)
 
 
 def load_image(filename):
@@ -23,9 +23,8 @@ def load_image(filename):
         return Image.open(filename)
 
 
-def unique_mask_values(idx, mask_dir, mask_suffix):
-    mask_file = list(mask_dir.glob(idx + mask_suffix + '.*'))[0]
-    mask = np.asarray(load_image(mask_file))
+def unique_mask_values(mask_path):
+    mask = np.asarray(load_image(mask_path))
     if mask.ndim == 2:
         return np.unique(mask)
     elif mask.ndim == 3:
@@ -43,15 +42,29 @@ class BasicDataset(Dataset):
         self.scale = scale
         self.mask_suffix = mask_suffix
 
-        self.ids = [splitext(file)[0] for file in listdir(images_dir) if isfile(join(images_dir, file)) and not file.startswith('.')]
+        image_paths = [path for path in self.images_dir.iterdir() if path.is_file() and not path.name.startswith('.')]
+        mask_paths = [path for path in self.mask_dir.iterdir() if path.is_file() and not path.name.startswith('.')]
+
+        image_map = {path.stem: path for path in image_paths}
+        mask_map = {}
+        for path in mask_paths:
+            stem = path.stem
+            if self.mask_suffix and stem.endswith(self.mask_suffix):
+                stem = stem[:-len(self.mask_suffix)]
+            mask_map[stem] = path
+
+        self.ids = sorted([image_id for image_id in image_map.keys() if image_id in mask_map])
         if not self.ids:
             raise RuntimeError(f'No input file found in {images_dir}, make sure you put your images there')
+
+        self.image_files = {image_id: image_map[image_id] for image_id in self.ids}
+        self.mask_files = {image_id: mask_map[image_id] for image_id in self.ids}
 
         logging.info(f'Creating dataset with {len(self.ids)} examples')
         logging.info('Scanning mask files to determine unique values')
         with Pool() as p:
             unique = list(tqdm(
-                p.imap(partial(unique_mask_values, mask_dir=self.mask_dir, mask_suffix=self.mask_suffix), self.ids),
+                p.imap(unique_mask_values, [self.mask_files[image_id] for image_id in self.ids]),
                 total=len(self.ids)
             ))
 
@@ -92,13 +105,12 @@ class BasicDataset(Dataset):
 
     def __getitem__(self, idx):
         name = self.ids[idx]
-        mask_file = list(self.mask_dir.glob(name + self.mask_suffix + '.*'))
-        img_file = list(self.images_dir.glob(name + '.*'))
 
-        assert len(img_file) == 1, f'Either no image or multiple images found for the ID {name}: {img_file}'
-        assert len(mask_file) == 1, f'Either no mask or multiple masks found for the ID {name}: {mask_file}'
-        mask = load_image(mask_file[0])
-        img = load_image(img_file[0])
+        if name not in self.image_files or name not in self.mask_files:
+            raise RuntimeError(f'Image/mask pair was not indexed for ID {name}')
+
+        mask = load_image(self.mask_files[name])
+        img = load_image(self.image_files[name])
 
         assert img.size == mask.size, \
             f'Image and mask {name} should be the same size, but are {img.size} and {mask.size}'
