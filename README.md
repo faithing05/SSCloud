@@ -131,17 +131,22 @@ docker exec -it 99f9f2b998f2 /bin/bash
 
 ### **Запуск контейнера для Unet**
 
-**Для обучения:**
-Эта команда запускает контейнер `milesial/unet`, монтируя вашу папку с данными (`data`) внутрь контейнера.
-*   `--shm-size=8g`: увеличивает размер разделяемой памяти, что может быть полезно при работе с большими объемами данных.
+Соберите локальный образ с окружением `sscloud-gpu`:
 ```bash
-docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}/data:/app/data" milesial/unet
+cd train
+docker build -t sscloud-gpu .
 ```
 
-**Для инференса (применения модели):**
-Эта команда также запускает контейнер, но монтирует папки для тестовых данных, вывода и моделей (`checkpoints`).
+Запустите контейнер для обучения/инференса с доступом к GPU и кодом проекта:
 ```bash
-docker run --rm -it --gpus all -v "${PWD}:/workspace/unet" milesial/unet
+docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}:/workspace/sscloud-gpu" sscloud-gpu
+```
+
+Если нужно перенести образ на другую машину:
+```bash
+docker save sscloud-gpu -o sscloud-gpu.tar
+# На другой машине
+docker load -i sscloud-gpu.tar
 ```
 
 ### **Работа внутри контейнера**
