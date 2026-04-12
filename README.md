@@ -135,11 +135,12 @@ docker exec -it 99f9f2b998f2 /bin/bash
 ```bash
 cd train
 docker build -t sscloud-gpu .
+cd ..
 ```
 
 Запустите контейнер для обучения/инференса с доступом к GPU и кодом проекта:
 ```bash
-docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}:/workspace/sscloud-gpu" sscloud-gpu
+docker run --rm -it --gpus all --shm-size=8g --ulimit memlock=-1 -v "${PWD}:/workspace/SSCloud" sscloud-gpu
 ```
 
 Если нужно перенести образ на другую машину:

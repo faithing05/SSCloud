@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-WORKDIR /workspace/sscloud-gpu
+WORKDIR /workspace/SSCloud/train
 
 COPY requirements.txt ./requirements.txt
 RUN python -m pip install --upgrade pip

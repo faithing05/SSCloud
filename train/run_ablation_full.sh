@@ -30,23 +30,23 @@ run_experiment() {
     printf 'Stage duration: %02d:%02d:%02d\n' $((duration / 3600)) $(((duration % 3600) / 60)) $((duration % 60))
 }
 
-COMMON_ARGS="--use-transformer --use-attention --epochs 10 --batch-size 1 --scale 0.1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
+COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 50 --batch-size 1 --scale 0.1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
 
 # A) Baseline
 run_experiment "A_Baseline" \
-    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --no-rare-oversampling --results-dir results_ablation_A_baseline"
+    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --no-rare-oversampling --results-dir results_ablation_A_baseline_full"
 
 # B) Class weights only
 run_experiment "B_Weights" \
-    "python train.py ${COMMON_ARGS} --learning-rate 8e-5 --use-class-weights --no-rare-oversampling --results-dir results_ablation_B_weights"
+    "python train.py ${COMMON_ARGS} --learning-rate 8e-5 --use-class-weights --no-rare-oversampling --results-dir results_ablation_B_weights_full"
 
 # C) Oversampling only
 run_experiment "C_Sampler" \
-    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --use-rare-oversampling --results-dir results_ablation_C_sampler"
+    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --use-rare-oversampling --results-dir results_ablation_C_sampler_full"
 
 # D) Weights + oversampling
 run_experiment "D_Both" \
-    "python train.py ${COMMON_ARGS} --learning-rate 8e-5 --use-class-weights --use-rare-oversampling --results-dir results_ablation_D_both"
+    "python train.py ${COMMON_ARGS} --learning-rate 8e-5 --use-class-weights --use-rare-oversampling --results-dir results_ablation_D_both_full"
 
 GLOBAL_END_TS=$(date +%s)
 TOTAL_DURATION=$((GLOBAL_END_TS - GLOBAL_START_TS))
