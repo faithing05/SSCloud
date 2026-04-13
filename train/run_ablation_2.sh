@@ -36,17 +36,17 @@ COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 50 --bat
 run_experiment "A_Baseline" \
     "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --no-rare-oversampling --results-dir results_ablation_A_baseline_full"
 
-# B) Smoothed class weights only
-run_experiment "B_WeightsSoft" \
-    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --use-class-weights --class-weight-power 0.5 --class-weight-min 0.25 --class-weight-max 3.0 --no-rare-oversampling --results-dir results_ablation_B_weights_soft_full"
+# B) Class weights only
+run_experiment "B_Weights" \
+    "python train.py ${COMMON_ARGS} --learning-rate 8e-5 --use-class-weights --no-rare-oversampling --results-dir results_ablation_B_weights_full"
 
-# C) Soft oversampling only
-run_experiment "C_SamplerSoft" \
-    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --use-rare-oversampling --oversampling-rarity-power 0.5 --oversampling-strength 0.35 --oversampling-max-sample-weight 2.0 --results-dir results_ablation_C_sampler_soft_full"
+# C) Oversampling only
+run_experiment "C_Sampler" \
+    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --no-class-weights --use-rare-oversampling --results-dir results_ablation_C_sampler_full"
 
-# D) Smoothed weights + soft oversampling
-run_experiment "D_BothSoft" \
-    "python train.py ${COMMON_ARGS} --learning-rate 1e-4 --use-class-weights --class-weight-power 0.5 --class-weight-min 0.25 --class-weight-max 3.0 --use-rare-oversampling --oversampling-rarity-power 0.5 --oversampling-strength 0.35 --oversampling-max-sample-weight 2.0 --results-dir results_ablation_D_both_soft_full"
+# D) Weights + oversampling
+run_experiment "D_Both" \
+    "python train.py ${COMMON_ARGS} --learning-rate 8e-5 --use-class-weights --use-rare-oversampling --results-dir results_ablation_D_both_full"
 
 GLOBAL_END_TS=$(date +%s)
 TOTAL_DURATION=$((GLOBAL_END_TS - GLOBAL_START_TS))
