@@ -10,7 +10,8 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 
-warnings.filterwarnings('once', category=Image.DecompressionBombWarning)
+Image.MAX_IMAGE_PIXELS = None
+warnings.filterwarnings('ignore', category=Image.DecompressionBombWarning)
 
 
 def load_image(filename):
