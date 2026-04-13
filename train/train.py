@@ -62,7 +62,12 @@ def _compute_split_class_stats(dataset, subset_indices: List[int], num_classes: 
     }
 
 
-def _build_class_weights(pixel_counts: np.ndarray) -> torch.Tensor:
+def _build_smoothed_class_weights(
+        pixel_counts: np.ndarray,
+        power: float,
+        min_weight: float,
+        max_weight: float,
+) -> torch.Tensor:
     class_weights = np.zeros_like(pixel_counts, dtype=np.float32)
     nonzero_mask = pixel_counts > 0
 
@@ -70,7 +75,10 @@ def _build_class_weights(pixel_counts: np.ndarray) -> torch.Tensor:
         median_count = float(np.median(pixel_counts[nonzero_mask]))
         class_weights[nonzero_mask] = median_count / pixel_counts[nonzero_mask]
 
-    class_weights = np.clip(class_weights, 0.0, 10.0)
+    if power != 1.0:
+        class_weights[nonzero_mask] = np.power(class_weights[nonzero_mask], power)
+
+    class_weights = np.clip(class_weights, min_weight, max_weight)
     positive = class_weights > 0
     if positive.any():
         class_weights[positive] = class_weights[positive] / class_weights[positive].mean()
@@ -78,7 +86,13 @@ def _build_class_weights(pixel_counts: np.ndarray) -> torch.Tensor:
     return torch.tensor(class_weights, dtype=torch.float32)
 
 
-def _build_oversampling_weights(pixel_counts: np.ndarray, image_presence: np.ndarray) -> torch.Tensor:
+def _build_oversampling_weights(
+        pixel_counts: np.ndarray,
+        image_presence: np.ndarray,
+        rarity_power: float,
+        sampler_strength: float,
+        max_sample_weight: float,
+) -> torch.Tensor:
     sample_weights = np.ones(image_presence.shape[0], dtype=np.float64)
     if image_presence.shape[0] == 0:
         return torch.tensor(sample_weights, dtype=torch.double)
@@ -88,6 +102,7 @@ def _build_oversampling_weights(pixel_counts: np.ndarray, image_presence: np.nda
     class_rarity = np.zeros_like(class_freq, dtype=np.float64)
     nonzero = class_freq > 0
     class_rarity[nonzero] = 1.0 / class_freq[nonzero]
+    class_rarity[nonzero] = np.power(class_rarity[nonzero], rarity_power)
 
     # Ignore background when oversampling rare semantic classes
     if class_rarity.shape[0] > 0:
@@ -100,6 +115,10 @@ def _build_oversampling_weights(pixel_counts: np.ndarray, image_presence: np.nda
             sample_weights[idx] = float(np.mean(class_rarity[present]))
 
     sample_weights = np.clip(sample_weights, 1e-6, None)
+    sample_weights = sample_weights / sample_weights.mean()
+    sampler_strength = float(np.clip(sampler_strength, 0.0, 1.0))
+    sample_weights = (1.0 - sampler_strength) + sampler_strength * sample_weights
+    sample_weights = np.clip(sample_weights, 1e-6, max_sample_weight)
     sample_weights = sample_weights / sample_weights.mean()
     return torch.tensor(sample_weights, dtype=torch.double)
 
@@ -162,6 +181,12 @@ def train_model(
         num_workers: int = 4,
         persistent_workers: bool = True,
         prefetch_factor: int = 2,
+        class_weight_power: float = 0.5,
+        class_weight_min: float = 0.25,
+        class_weight_max: float = 4.0,
+        oversampling_rarity_power: float = 0.5,
+        oversampling_strength: float = 0.5,
+        oversampling_max_sample_weight: float = 3.0,
 ):
     # Create checkpoint directory within results directory
     checkpoint_dir = Path(results_dir) / 'checkpoints'
@@ -186,12 +211,23 @@ def train_model(
 
     class_weights = None
     if model.n_classes > 1 and use_class_weights:
-        class_weights = _build_class_weights(train_stats['pixel_counts']).to(device)
+        class_weights = _build_smoothed_class_weights(
+            train_stats['pixel_counts'],
+            power=class_weight_power,
+            min_weight=class_weight_min,
+            max_weight=class_weight_max,
+        ).to(device)
         logging.info(f'Using weighted CrossEntropyLoss with weights: {class_weights.cpu().numpy().round(4).tolist()}')
 
     train_sampler = None
     if use_rare_oversampling:
-        sample_weights = _build_oversampling_weights(train_stats['pixel_counts'], train_stats['image_presence'])
+        sample_weights = _build_oversampling_weights(
+            train_stats['pixel_counts'],
+            train_stats['image_presence'],
+            rarity_power=oversampling_rarity_power,
+            sampler_strength=oversampling_strength,
+            max_sample_weight=oversampling_max_sample_weight,
+        )
         train_sampler = WeightedRandomSampler(
             weights=sample_weights,
             num_samples=len(sample_weights),
@@ -392,10 +428,16 @@ def get_args():
     parser.add_argument('--no-attention', dest='use_attention', action='store_false', help='Disable attention gates')
     parser.add_argument('--detailed-eval', action='store_true', default=False, help='Enable detailed evaluation with per-class IoU and confusion matrix')
     parser.add_argument('--results-dir', type=str, default='results', help='Directory to save evaluation results')
-    parser.add_argument('--use-class-weights', action='store_true', default=True, help='Enable weighted CrossEntropy loss (default: True)')
+    parser.add_argument('--use-class-weights', action='store_true', default=False, help='Enable weighted CrossEntropy loss (default: False)')
     parser.add_argument('--no-class-weights', dest='use_class_weights', action='store_false', help='Disable weighted CrossEntropy loss')
-    parser.add_argument('--use-rare-oversampling', action='store_true', default=True, help='Enable rare-class oversampling (default: True)')
+    parser.add_argument('--class-weight-power', type=float, default=0.5, help='Smoothing exponent for class weights (1.0 = raw median-frequency balancing)')
+    parser.add_argument('--class-weight-min', type=float, default=0.25, help='Minimum class weight before normalization')
+    parser.add_argument('--class-weight-max', type=float, default=4.0, help='Maximum class weight before normalization')
+    parser.add_argument('--use-rare-oversampling', action='store_true', default=False, help='Enable rare-class oversampling (default: False)')
     parser.add_argument('--no-rare-oversampling', dest='use_rare_oversampling', action='store_false', help='Disable rare-class oversampling')
+    parser.add_argument('--oversampling-rarity-power', type=float, default=0.5, help='Rarity exponent for oversampling weights (1.0 = inverse-frequency)')
+    parser.add_argument('--oversampling-strength', type=float, default=0.5, help='Blend factor between uniform and rarity-based sampling [0..1]')
+    parser.add_argument('--oversampling-max-sample-weight', type=float, default=3.0, help='Upper bound for per-sample oversampling weight')
     parser.add_argument('--save-class-distribution', action='store_true', default=True, help='Save train/val class distribution report (default: True)')
     parser.add_argument('--no-save-class-distribution', dest='save_class_distribution', action='store_false', help='Disable class distribution report')
     parser.add_argument('--num-workers', type=int, default=4, help='DataLoader worker processes (set 0 for debugging)')
@@ -462,6 +504,12 @@ if __name__ == '__main__':
             num_workers=args.num_workers,
             persistent_workers=args.persistent_workers,
             prefetch_factor=args.prefetch_factor,
+            class_weight_power=args.class_weight_power,
+            class_weight_min=args.class_weight_min,
+            class_weight_max=args.class_weight_max,
+            oversampling_rarity_power=args.oversampling_rarity_power,
+            oversampling_strength=args.oversampling_strength,
+            oversampling_max_sample_weight=args.oversampling_max_sample_weight,
         )
     except torch.cuda.OutOfMemoryError:
         logging.error('Detected OutOfMemoryError! '
@@ -486,4 +534,10 @@ if __name__ == '__main__':
             num_workers=args.num_workers,
             persistent_workers=args.persistent_workers,
             prefetch_factor=args.prefetch_factor,
+            class_weight_power=args.class_weight_power,
+            class_weight_min=args.class_weight_min,
+            class_weight_max=args.class_weight_max,
+            oversampling_rarity_power=args.oversampling_rarity_power,
+            oversampling_strength=args.oversampling_strength,
+            oversampling_max_sample_weight=args.oversampling_max_sample_weight,
         )
