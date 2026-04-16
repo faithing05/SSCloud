@@ -60,7 +60,11 @@ if [[ -z "${WANDB_MODE:-}" ]]; then
     export WANDB_MODE=offline
 fi
 
+START_TS=$(date +%s)
+START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S')
+
 echo "Starting quality training preset..."
+echo "  Start time:    ${START_HUMAN}"
 echo "  Results dir:   ${RESULTS_DIR}"
 echo "  Epochs:        ${EPOCHS}"
 echo "  Batch size:    ${BATCH_SIZE}"
@@ -93,4 +97,10 @@ fi
 
 "${cmd[@]}"
 
+END_TS=$(date +%s)
+END_HUMAN=$(date '+%Y-%m-%d %H:%M:%S')
+DURATION=$((END_TS - START_TS))
+
 echo "Training finished. Best checkpoint is in: ${RESULTS_DIR}/checkpoints/"
+echo "  End time:      ${END_HUMAN}"
+printf '  Duration:      %02d:%02d:%02d\n' $((DURATION / 3600)) $(((DURATION % 3600) / 60)) $((DURATION % 60))
