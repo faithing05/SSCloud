@@ -2,10 +2,10 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--no-amp]"
+    echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--amp]"
     echo
     echo "High-quality baseline training preset (stable by our ablation results)."
-    echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=9, lr=1e-4, AMP=on"
+    echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=9, lr=5e-5, AMP=off"
 }
 
 RESULTS_DIR="results_quality_baseline"
@@ -13,8 +13,8 @@ EPOCHS=50
 BATCH_SIZE=1
 SCALE=0.1
 CLASSES=9
-LEARNING_RATE=1e-4
-USE_AMP=1
+LEARNING_RATE=5e-5
+USE_AMP=0
 NUM_WORKERS=4
 PREFETCH_FACTOR=2
 
@@ -39,6 +39,10 @@ while [[ $# -gt 0 ]]; do
         --learning-rate)
             LEARNING_RATE="$2"
             shift 2
+            ;;
+        --amp)
+            USE_AMP=1
+            shift
             ;;
         --no-amp)
             USE_AMP=0
