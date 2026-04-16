@@ -1,6 +1,7 @@
 .ipynb_checkpoints
 .Trash-0
 *.json
+.agents
 train/data/test/output_all_epochs/*
 
 # Игнорировать все файлы и папки, начинающиеся подчёркивания
