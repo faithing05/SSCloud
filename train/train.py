@@ -486,58 +486,68 @@ if __name__ == '__main__':
         logging.info(f'Model loaded from {args.load}')
 
     model.to(device=device)
+
+    train_kwargs = dict(
+        model=model,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        device=device,
+        img_scale=args.scale,
+        val_percent=args.val / 100,
+        amp=args.amp,
+        detailed_eval=args.detailed_eval,
+        results_dir=args.results_dir,
+        use_class_weights=args.use_class_weights,
+        use_rare_oversampling=args.use_rare_oversampling,
+        save_class_distribution=args.save_class_distribution,
+        num_workers=args.num_workers,
+        persistent_workers=args.persistent_workers,
+        prefetch_factor=args.prefetch_factor,
+        class_weight_power=args.class_weight_power,
+        class_weight_min=args.class_weight_min,
+        class_weight_max=args.class_weight_max,
+        oversampling_rarity_power=args.oversampling_rarity_power,
+        oversampling_strength=args.oversampling_strength,
+        oversampling_max_sample_weight=args.oversampling_max_sample_weight,
+    )
+
     try:
-        train_model(
-            model=model,
-            epochs=args.epochs,
-            batch_size=args.batch_size,
-            learning_rate=args.lr,
-            device=device,
-            img_scale=args.scale,
-            val_percent=args.val / 100,
-            amp=args.amp,
-            detailed_eval=args.detailed_eval,
-            results_dir=args.results_dir,
-            use_class_weights=args.use_class_weights,
-            use_rare_oversampling=args.use_rare_oversampling,
-            save_class_distribution=args.save_class_distribution,
-            num_workers=args.num_workers,
-            persistent_workers=args.persistent_workers,
-            prefetch_factor=args.prefetch_factor,
-            class_weight_power=args.class_weight_power,
-            class_weight_min=args.class_weight_min,
-            class_weight_max=args.class_weight_max,
-            oversampling_rarity_power=args.oversampling_rarity_power,
-            oversampling_strength=args.oversampling_strength,
-            oversampling_max_sample_weight=args.oversampling_max_sample_weight,
-        )
+        train_model(**train_kwargs)
     except torch.cuda.OutOfMemoryError:
-        logging.error('Detected OutOfMemoryError! '
-                      'Enabling checkpointing to reduce memory usage, but this slows down training. '
-                      'Consider enabling AMP (--amp) for fast and memory efficient training')
-        torch.cuda.empty_cache()
-        model.use_checkpointing()
-        train_model(
-            model=model,
-            epochs=args.epochs,
-            batch_size=args.batch_size,
-            learning_rate=args.lr,
-            device=device,
-            img_scale=args.scale,
-            val_percent=args.val / 100,
-            amp=args.amp,
-            detailed_eval=args.detailed_eval,
-            results_dir=args.results_dir,
-            use_class_weights=args.use_class_weights,
-            use_rare_oversampling=args.use_rare_oversampling,
-            save_class_distribution=args.save_class_distribution,
-            num_workers=args.num_workers,
-            persistent_workers=args.persistent_workers,
-            prefetch_factor=args.prefetch_factor,
-            class_weight_power=args.class_weight_power,
-            class_weight_min=args.class_weight_min,
-            class_weight_max=args.class_weight_max,
-            oversampling_rarity_power=args.oversampling_rarity_power,
-            oversampling_strength=args.oversampling_strength,
-            oversampling_max_sample_weight=args.oversampling_max_sample_weight,
+        logging.error(
+            'Detected OutOfMemoryError during training. Applying memory fallback: '
+            'empty CUDA cache, enable checkpointing if available, and retry with AMP.'
         )
+        torch.cuda.empty_cache()
+
+        checkpointing_enabled = False
+        if hasattr(model, 'use_checkpointing') and callable(getattr(model, 'use_checkpointing')):
+            model.use_checkpointing()
+            checkpointing_enabled = True
+            logging.info('Enabled model checkpointing via model.use_checkpointing()')
+        elif hasattr(model, 'gradient_checkpointing_enable') and callable(getattr(model, 'gradient_checkpointing_enable')):
+            model.gradient_checkpointing_enable()
+            checkpointing_enabled = True
+            logging.info('Enabled model checkpointing via model.gradient_checkpointing_enable()')
+        else:
+            logging.warning(
+                'Checkpointing fallback is not available for model type %s; retrying without checkpointing.',
+                type(model).__name__,
+            )
+
+        fallback_amp = True
+        if not args.amp:
+            logging.info('Retrying with AMP enabled for lower memory usage')
+        train_kwargs['amp'] = fallback_amp
+
+        try:
+            train_model(**train_kwargs)
+        except torch.cuda.OutOfMemoryError:
+            logging.error(
+                'OOM persisted after fallback (checkpointing=%s, amp=%s). '
+                'Try smaller --scale, disable transformer (--no-transformer), or use a smaller batch size.',
+                checkpointing_enabled,
+                fallback_amp,
+            )
+            raise
