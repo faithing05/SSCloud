@@ -77,10 +77,10 @@ def count_model_parameters(model_name, use_transformer=True, use_attention=True)
     # Create model instance
     if model_name == 'baseline':
         # Baseline U-Net (no transformer, no attention)
-        model = UNet(n_channels=3, n_classes=68, bilinear=False)
+        model = UNet(n_channels=3, n_classes=6, bilinear=False)
     elif model_name == 'hybrid':
         # HybridSSCloudUNet with specified components
-        model = HybridSSCloudUNet(n_channels=3, n_classes=68, 
+        model = HybridSSCloudUNet(n_channels=3, n_classes=6, 
                                   use_transformer=use_transformer, 
                                   use_attention=use_attention)
     else:

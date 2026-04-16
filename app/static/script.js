@@ -32,7 +32,7 @@ const applyReclassifyBtn = document.getElementById('apply-reclassify-btn');
 const reviewHighlightedImageEl = document.getElementById('review-highlighted-image');
 
 // --- Глобальные переменные ---
-const CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"];
+const CLASS_NAMES = ["_background_", "Земля", "Растительность", "Здание", "Конструкции", "Обстановка"];
 let statusInterval = null;
 let currentMaskName = null;
 let reviewItems = [];

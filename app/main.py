@@ -38,7 +38,7 @@ app = FastAPI()
 
 INPUT_DIR = "/workspace/SSCloud/Data_Input"
 OUTPUT_DIR = "/workspace/SSCloud/Data_Output"
-CLASS_NAMES = ["Фон", "Земля", "Человек", "Растительность", "Транспорт", "Конструкции", "Здание", "Обстановка"]
+CLASS_NAMES = ["_background_", "Земля", "Растительность", "Здание", "Конструкции", "Обстановка"]
 
 processor_instance: Optional[processor.PanoramaProcessor] = None
 classification_queue: List[str] = []

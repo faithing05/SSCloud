@@ -8,7 +8,7 @@ from tqdm import tqdm
 MASKS_DIR = 'data/masks'
 
 # Ожидаемые ID классов из вашего словаря (включая фон 0)
-EXPECTED_IDS = {0, 1, 2, 5, 6, 64, 65, 66, 67}
+EXPECTED_IDS = {0, 2, 5, 6, 65, 66}
 
 def analyze_masks():
     """

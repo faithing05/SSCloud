@@ -32,7 +32,7 @@ run_experiment() {
 
 # Iteration 6: low-cost, high-signal check for rare classes.
 # 20 epochs to reduce GPU time but still observe stable trends.
-COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 20 --batch-size 1 --scale 0.1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
+COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 20 --batch-size 1 --scale 0.1 --classes 6 --num-workers 4 --prefetch-factor 2 --persistent-workers"
 
 # A) Control: proven baseline.
 run_experiment "A_Baseline_ctrl" \

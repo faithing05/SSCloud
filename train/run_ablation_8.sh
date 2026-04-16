@@ -33,7 +33,7 @@ run_experiment() {
 # Ablation 8 hypothesis:
 # Rare classes have very low pixel share (esp. class IDs 64/67), so test larger image scale
 # first, while avoiding aggressive weighting/sampling that previously hurt Dice.
-COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 20 --batch-size 1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
+COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 20 --batch-size 1 --classes 6 --num-workers 4 --prefetch-factor 2 --persistent-workers"
 
 # A) Control baseline (current production reference)
 run_experiment "A_Baseline_s010" \

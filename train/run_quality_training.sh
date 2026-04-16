@@ -5,14 +5,14 @@ usage() {
     echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--amp]"
     echo
     echo "High-quality baseline training preset (stable by our ablation results)."
-    echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=9, lr=5e-5, AMP=off"
+    echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=6, lr=5e-5, AMP=off"
 }
 
 RESULTS_DIR="results_quality_baseline"
 EPOCHS=50
 BATCH_SIZE=1
 SCALE=0.1
-CLASSES=9
+CLASSES=6
 LEARNING_RATE=5e-5
 USE_AMP=0
 NUM_WORKERS=4

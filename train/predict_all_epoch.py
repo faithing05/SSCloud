@@ -79,7 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoints-dir', type=str, default='checkpoints', help='Папка с сохраненными моделями (.pth).')
     parser.add_argument('--output-dir', type=str, default='data/test/output_all_epochs', help='Папка для сохранения всех предсказанных масок.')
     parser.add_argument('--scale', type=float, default=0.1, help='Коэффициент масштабирования, использованный при обучении.')
-    parser.add_argument('--classes', type=int, default=68, help='Количество классов, использованное при обучении.')
+    parser.add_argument('--classes', type=int, default=6, help='Количество классов, использованное при обучении.')
     
     args = parser.parse_args()
 

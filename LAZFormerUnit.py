@@ -20,8 +20,15 @@ CVAT_BASE_DIR = 'Data_Output'
 
 # --- СЛОВАРЬ СООТВЕТСТВИЯ КЛАССОВ ---
 CLASS_MAPPING = {
-    "Здание": 6, "Земля": 2, "Растительность": 5, "Фон": 1,
-    "Конструкции": 65, "Транспорт": 64, "Человек": 67, "Обстановка": 66,
+    "_background_": 0,
+    "Фон": 0,
+    "Здание": 6,
+    "Земля": 2,
+    "Растительность": 5,
+    "Конструкции": 65,
+    "Транспорт": 66,
+    "Человек": 66,
+    "Обстановка": 66,
 }
 
 
@@ -168,7 +175,7 @@ def process_e57_with_classes(e57_path, annotation_path, laz_out_path):
     annotations_by_class = {cls: [] for cls in CLASS_MAPPING}
     for ann in annotations:
         if ann['class_name'] in annotations_by_class: annotations_by_class[ann['class_name']].append(ann)
-    DRAW_ORDER = ["Фон", "Земля", "Здание", "Растительность", "Обстановка", "Конструкции", "Транспорт", "Человек"]
+    DRAW_ORDER = ["_background_", "Фон", "Земля", "Здание", "Растительность", "Обстановка", "Конструкции", "Транспорт", "Человек"]
     for class_name in DRAW_ORDER:
         if class_name in annotations_by_class and class_name in CLASS_MAPPING:
             class_code = CLASS_MAPPING[class_name]

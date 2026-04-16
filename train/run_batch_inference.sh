@@ -16,7 +16,7 @@ usage() {
     echo
     echo "Options:"
     echo "  --scale F            Input scale factor (default: 0.1)"
-    echo "  --classes N          Number of classes (default: 9)"
+    echo "  --classes N          Number of classes (default: 6)"
     echo "  --mask-threshold F   Binary threshold (default: 0.5)"
     echo "  --no-attention-maps  Disable saving attention maps"
     echo "  --no-transformer     Disable transformer bottleneck"
@@ -30,7 +30,7 @@ EPOCH=""
 MODEL_PATH=""
 
 SCALE=0.1
-CLASSES=9
+CLASSES=6
 MASK_THRESHOLD=0.5
 SAVE_ATTENTION_MAPS=1
 USE_TRANSFORMER=1

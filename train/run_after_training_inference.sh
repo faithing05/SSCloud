@@ -18,13 +18,14 @@ usage() {
     echo "Options:"
     echo "  --epoch N            Use specific epoch checkpoint"
     echo "  --scale F            Input scale factor (default: 0.1)"
-    echo "  --classes N          Number of classes (default: 9)"
+    echo "  --classes N          Number of classes (default: 6)"
     echo "  --mask-threshold F   Binary threshold (default: 0.5)"
     echo "  --no-attention-maps  Disable saving attention maps"
     echo "  --no-transformer     Disable transformer bottleneck"
     echo "  --no-attention       Disable attention gates"
-    echo "  --no-collage         Disable collage generation"
-    echo "  --collage-dir DIR    Folder for collages (default: OUTPUT_DIR/collages)"
+    echo "  --no-colorized       Disable colorized mask generation"
+    echo "  --colorized-dir DIR  Folder for colorized masks (default: OUTPUT_DIR/colorized)"
+    echo "  --class-names FILE   JSON map for class names in legend (default: train/class_names.json if exists)"
 }
 
 RESULTS_DIR=""
@@ -33,13 +34,14 @@ OUTPUT_DIR=""
 EPOCH=""
 
 SCALE=0.1
-CLASSES=9
+CLASSES=6
 MASK_THRESHOLD=0.5
 SAVE_ATTENTION_MAPS=1
 USE_TRANSFORMER=1
 USE_ATTENTION=1
-GENERATE_COLLAGE=1
-COLLAGE_DIR=""
+GENERATE_COLORIZED=1
+COLORIZED_DIR=""
+CLASS_NAMES_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -83,12 +85,16 @@ while [[ $# -gt 0 ]]; do
             USE_ATTENTION=0
             shift
             ;;
-        --no-collage)
-            GENERATE_COLLAGE=0
+        --no-colorized)
+            GENERATE_COLORIZED=0
             shift
             ;;
-        --collage-dir)
-            COLLAGE_DIR="$2"
+        --colorized-dir)
+            COLORIZED_DIR="$2"
+            shift 2
+            ;;
+        --class-names)
+            CLASS_NAMES_FILE="$2"
             shift 2
             ;;
         -h|--help)
@@ -144,6 +150,19 @@ if [[ -z "${EPOCH}" ]]; then
     echo "Auto-selected latest epoch checkpoint: ${EPOCH}"
 fi
 
+CHECKPOINT_PATH="${CHECKPOINTS_DIR}/checkpoint_epoch${EPOCH}.pth"
+if [[ ! -f "${CHECKPOINT_PATH}" ]]; then
+    echo "Error: checkpoint file not found: ${CHECKPOINT_PATH}"
+    exit 1
+fi
+
+if [[ -z "${CLASS_NAMES_FILE}" ]]; then
+    default_class_names="${SCRIPT_DIR}/class_names.json"
+    if [[ -f "${default_class_names}" ]]; then
+        CLASS_NAMES_FILE="${default_class_names}"
+    fi
+fi
+
 cmd=(
     bash "${SCRIPT_DIR}/run_batch_inference.sh"
     --input-dir "${INPUT_DIR}"
@@ -169,13 +188,24 @@ fi
 
 "${cmd[@]}"
 
-if [[ "${GENERATE_COLLAGE}" -eq 1 ]]; then
-    if [[ -z "${COLLAGE_DIR}" ]]; then
-        COLLAGE_DIR="${OUTPUT_DIR}/collages"
+if [[ "${GENERATE_COLORIZED}" -eq 1 ]]; then
+    if [[ -z "${COLORIZED_DIR}" ]]; then
+        COLORIZED_DIR="${OUTPUT_DIR}/colorized"
     fi
 
-    python "${SCRIPT_DIR}/build_inference_collages.py" \
-        --input-dir "${INPUT_DIR}" \
-        --output-dir "${OUTPUT_DIR}" \
-        --collage-dir "${COLLAGE_DIR}"
+    colorize_cmd=(
+        python "${SCRIPT_DIR}/colorize_masks_with_legend.py"
+        --mask-dir "${OUTPUT_DIR}"
+        --output-dir "${COLORIZED_DIR}"
+        --classes "${CLASSES}"
+        --checkpoint "${CHECKPOINT_PATH}"
+    )
+
+    if [[ -n "${CLASS_NAMES_FILE}" ]]; then
+        colorize_cmd+=(--class-names "${CLASS_NAMES_FILE}")
+    fi
+
+    "${colorize_cmd[@]}"
+
+    echo "Colorized masks and legend saved to: ${COLORIZED_DIR}"
 fi

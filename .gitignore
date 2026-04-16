@@ -14,8 +14,7 @@ Data_Input/*
 train/checkpoints/*
 train/data/imgs/*
 train/data/masks/*
-train/data/test/input/*
-train/data/test/output/*
+train/data/test/*
 train/wandb/*
 train/data/test/output_with_Attention*/*
 train/results/*
