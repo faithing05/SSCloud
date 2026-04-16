@@ -250,13 +250,14 @@ def train_model(
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
-    experiment = wandb.init(project='U-Net', resume='allow', anonymous='must')
+    experiment = wandb.init(project='U-Net', resume='never', reinit=True, anonymous='must')
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp,
-              use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
+               use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
              save_class_distribution=save_class_distribution, num_workers=effective_num_workers,
-             persistent_workers=persistent_workers, prefetch_factor=prefetch_factor)
+             persistent_workers=persistent_workers, prefetch_factor=prefetch_factor),
+        allow_val_change=True,
     )
 
     logging.info(f'''Starting training:
@@ -540,6 +541,11 @@ if __name__ == '__main__':
         if not args.amp:
             logging.info('Retrying with AMP enabled for lower memory usage')
         train_kwargs['amp'] = fallback_amp
+
+        try:
+            wandb.finish()
+        except Exception:
+            pass
 
         try:
             train_model(**train_kwargs)
