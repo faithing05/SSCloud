@@ -221,3 +221,15 @@ INFO: Starting training:
 
 Epoch 1/20:   0%|                                                                                                | 0/107 [00:01<?, ?img/s]
 ERROR: OOM persisted after fallback (checkpointing=False, amp=True). Try smaller --scale, disable transformer (--no-transformer), or use a smaller batch size.
+
+Да, посмотрел train/ablations/ablation_with_6_classes/summary/summary_run_ablation_1.md — выводы такие:
+- Лучший по Dice сейчас C_Sampler_ultralight_s010: 0.5456 (существенно выше A/B).
+- По Mean IoU разница небольшая:  
+  - A: 0.3815  
+  - B: 0.3965 (лучше по mIoU, но хуже по Dice)  
+  - C: 0.3877
+- Проблема редких классов осталась: у C и B Class 5 = 0.0000, у C еще Class 4 = 0.0000.
+- Эксперимент D (scale=0.2 + mild weights) корректно уперся в VRAM: OOM даже после fallback на AMP.
+Итого по ablation 1:
+- Как рабочий baseline для следующего шага логично брать C (если приоритет — глобальный Dice).
+- Если приоритет — “поднять редкие классы”, нужно в следующем ablation тестировать это без scale=0.2 на твоем текущем GPU (или упрощать модель/архитектуру под scale-up).
