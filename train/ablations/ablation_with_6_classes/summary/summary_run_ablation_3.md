@@ -217,3 +217,24 @@ wandb: Find logs at: ./wandb/offline-run-20260418_150629-xmx9df35/logs
 DONE: [D_Hybrid_weights_focus]
 
 Stage duration: 00:10:06
+
+Разобрал train/ablations/ablation_with_6_classes/summary/summary_run_ablation_3.md.
+Итоги по метрикам:
+- A_Hybrid_ref: Dice 0.3546, mIoU 0.3310, time 0.0090
+- B_Hybrid_sampler_plus: Dice 0.5481, mIoU 0.3795, time 0.0096
+- C_Hybrid_sampler_focus: Dice 0.3885, mIoU 0.3920, time 0.0089
+- D_Hybrid_weights_focus: Dice 0.4280, mIoU 0.3920, time 0.0082
+Что это значит:
+- По главной метрике Dice явный лидер — B (0.5481), и это лучший Dice среди всех запусков до сих пор в 6-классном треке.
+- По mIoU лидируют C и D (0.3920), но у них заметно хуже Dice.
+- Редкие классы:
+  - У B лучший сигнал по class 5 (0.0166), но class 4 = 0.0000.
+  - У C/D class 4/5 слегка “шевелятся”, но без качественного прорыва.
+- A (референс) провалился аномально сильно относительно ablation 2 — лучше не использовать его как текущий ориентир.
+Практический вывод:
+- Брать B_Hybrid_sampler_plus как новый рабочий baseline для ablation 4.
+- В ablation 4 делать очень узкий тюнинг вокруг B:
+  - чуть вверх/вниз oversampling-strength (например 0.12, 0.15, 0.18)
+  - один мягкий вариант max_sample_weight (1.5 vs 1.6)
+  - веса оставить как в B (не усиливать), чтобы не уронить Dice.
+Если хочешь, сразу напишу run_ablation_4.sh вокруг B в таком стиле.

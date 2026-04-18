@@ -4,11 +4,11 @@ set -euo pipefail
 usage() {
     echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--amp]"
     echo
-    echo "High-quality baseline training preset (stable by our ablation results)."
+    echo "High-quality training preset (best config from 6-class ablation)."
     echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=6, lr=5e-5, AMP=off"
 }
 
-RESULTS_DIR="results_quality_baseline"
+RESULTS_DIR="results_quality_hybrid_sampler_plus"
 EPOCHS=50
 BATCH_SIZE=1
 SCALE=0.1
@@ -87,8 +87,14 @@ cmd=(
     --scale "${SCALE}"
     --classes "${CLASSES}"
     --learning-rate "${LEARNING_RATE}"
-    --no-class-weights
-    --no-rare-oversampling
+    --use-class-weights
+    --class-weight-power 0.25
+    --class-weight-min 0.7
+    --class-weight-max 1.6
+    --use-rare-oversampling
+    --oversampling-rarity-power 0.35
+    --oversampling-strength 0.15
+    --oversampling-max-sample-weight 1.6
     --num-workers "${NUM_WORKERS}"
     --prefetch-factor "${PREFETCH_FACTOR}"
     --persistent-workers

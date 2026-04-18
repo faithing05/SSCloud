@@ -222,3 +222,21 @@ Stage duration: 00:09:46
 ALL EXPERIMENTS COMPLETED
 Total elapsed time: 00:39:26
 ============================================================
+
+Разобрал train/ablations/ablation_with_6_classes/summary/summary_run_ablation_4.md.
+Итоги ablation 4:
+- A_Hybrid_sampler_ref: Dice 0.5078, mIoU 0.3853, time 0.0104
+- B_Hybrid_sampler_s012: Dice 0.4224, mIoU 0.3910, time 0.0093
+- C_Hybrid_sampler_s018: Dice 0.3896, mIoU 0.3892, time 0.0098
+- D_Hybrid_sampler_cap15: Dice 0.4624, mIoU 0.3924, time 0.0092
+Что это значит:
+- По Dice лучший в этой серии — A (0.5078).
+- По mIoU лучший — D (0.3924), но Dice у него заметно ниже A.
+- Усиление sampler (C, strength=0.18) дало небольшой плюс по редкому class 4 (0.0243), но сильно уронило Dice.
+- В целом ablation 4 не побил лучший Dice из ablation 3 (B_Hybrid_sampler_plus = 0.5481), т.е. узкий тюнинг вокруг него оказался нестабильным.
+Практический вывод:
+- Текущий кандидат по глобальному качеству остается ablation 3 / B_Hybrid_sampler_plus.
+- Для ablation 5 логично делать не новый широкий поиск, а confirm-run на 50 эпох для 2 конфигов:
+  1) ablation3_B_hybrid_sampler_plus (кандидат по Dice)  
+  2) ablation4_D_hybrid_sampler_cap15 (кандидат по mIoU/балансу)
+Если хочешь, сразу напишу run_ablation_5.sh именно в этом формате (2 full-run по 50 эпох, memory-safe).
