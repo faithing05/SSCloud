@@ -1,5 +1,6 @@
 import argparse
 import logging
+import random
 from typing import Dict, List
 import numpy as np
 import torch
@@ -160,6 +161,26 @@ def _save_class_distribution(
     logging.info(f'Class distribution report saved to {output_path}')
 
 
+def _set_global_seed(seed: int, deterministic: bool = False) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+def _seed_worker(worker_id: int) -> None:
+    del worker_id
+    worker_seed = torch.initial_seed() % (2 ** 32)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 def train_model(
         model,
         device,
@@ -187,6 +208,7 @@ def train_model(
         oversampling_rarity_power: float = 0.5,
         oversampling_strength: float = 0.5,
         oversampling_max_sample_weight: float = 3.0,
+        seed: int = 42,
 ):
     # Create checkpoint directory within results directory
     checkpoint_dir = Path(results_dir) / 'checkpoints'
@@ -201,7 +223,8 @@ def train_model(
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    split_generator = torch.Generator().manual_seed(seed)
+    train_set, val_set = random_split(dataset, [n_train, n_val], generator=split_generator)
 
     train_stats = _compute_split_class_stats(dataset, list(train_set.indices), model.n_classes)
     val_stats = _compute_split_class_stats(dataset, list(val_set.indices), model.n_classes)
@@ -246,17 +269,33 @@ def train_model(
         loader_args['persistent_workers'] = persistent_workers
         loader_args['prefetch_factor'] = max(1, prefetch_factor)
 
-    train_loader = DataLoader(train_set, shuffle=train_sampler is None, sampler=train_sampler, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    loader_generator = torch.Generator().manual_seed(seed)
+    train_loader = DataLoader(
+        train_set,
+        shuffle=train_sampler is None,
+        sampler=train_sampler,
+        worker_init_fn=_seed_worker,
+        generator=loader_generator,
+        **loader_args,
+    )
+    val_loader = DataLoader(
+        val_set,
+        shuffle=False,
+        drop_last=True,
+        worker_init_fn=_seed_worker,
+        generator=loader_generator,
+        **loader_args,
+    )
 
     # (Initialize logging)
     experiment = wandb.init(project='U-Net', resume='never', reinit=True, anonymous='must')
     experiment.config.update(
         dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate,
              val_percent=val_percent, save_checkpoint=save_checkpoint, img_scale=img_scale, amp=amp,
-               use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
-             save_class_distribution=save_class_distribution, num_workers=effective_num_workers,
-             persistent_workers=persistent_workers, prefetch_factor=prefetch_factor),
+                use_class_weights=use_class_weights, use_rare_oversampling=use_rare_oversampling,
+              save_class_distribution=save_class_distribution, num_workers=effective_num_workers,
+              persistent_workers=persistent_workers, prefetch_factor=prefetch_factor,
+              seed=seed),
         allow_val_change=True,
     )
 
@@ -445,6 +484,9 @@ def get_args():
     parser.add_argument('--persistent-workers', action='store_true', default=True, help='Keep DataLoader workers alive between epochs (default: True)')
     parser.add_argument('--no-persistent-workers', dest='persistent_workers', action='store_false', help='Disable persistent DataLoader workers')
     parser.add_argument('--prefetch-factor', type=int, default=2, help='Batches prefetched per DataLoader worker')
+    parser.add_argument('--seed', type=int, default=42, help='Global random seed for reproducibility')
+    parser.add_argument('--deterministic', action='store_true', default=False,
+                        help='Enable deterministic CUDA algorithms (slower but more reproducible)')
 
     return parser.parse_args()
 
@@ -453,8 +495,10 @@ if __name__ == '__main__':
     args = get_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    _set_global_seed(args.seed, args.deterministic)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
+    logging.info(f'Random seed: {args.seed} (deterministic={args.deterministic})')
 
     # Change here to adapt to your data
     # n_channels=3 for RGB images
@@ -511,6 +555,7 @@ if __name__ == '__main__':
         oversampling_rarity_power=args.oversampling_rarity_power,
         oversampling_strength=args.oversampling_strength,
         oversampling_max_sample_weight=args.oversampling_max_sample_weight,
+        seed=args.seed,
     )
 
     try:

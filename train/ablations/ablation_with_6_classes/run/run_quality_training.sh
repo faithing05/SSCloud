@@ -2,19 +2,21 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--amp]"
+    echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--seed N] [--deterministic|--no-deterministic] [--amp]"
     echo
     echo "High-quality training preset (best run: ablation5_A_hybrid_sampler_plus_full)."
-    echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=6, lr=5e-5, AMP=off"
+    echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=6, lr=5e-5, seed=42, deterministic=on, AMP=off"
 }
 
-RESULTS_DIR="results_quality_best_ablation5_A"
+RESULTS_DIR="results_ablation5_A_hybrid_sampler_plus_full"
 EPOCHS=50
 BATCH_SIZE=1
 SCALE=0.1
 CLASSES=6
 LEARNING_RATE=5e-5
 USE_AMP=0
+SEED=42
+DETERMINISTIC=1
 NUM_WORKERS=4
 PREFETCH_FACTOR=2
 
@@ -39,6 +41,18 @@ while [[ $# -gt 0 ]]; do
         --learning-rate)
             LEARNING_RATE="$2"
             shift 2
+            ;;
+        --seed)
+            SEED="$2"
+            shift 2
+            ;;
+        --deterministic)
+            DETERMINISTIC=1
+            shift
+            ;;
+        --no-deterministic)
+            DETERMINISTIC=0
+            shift
             ;;
         --amp)
             USE_AMP=1
@@ -75,6 +89,8 @@ echo "  Batch size:    ${BATCH_SIZE}"
 echo "  Scale:         ${SCALE}"
 echo "  Classes:       ${CLASSES}"
 echo "  Learning rate: ${LEARNING_RATE}"
+echo "  Seed:          ${SEED}"
+echo "  Deterministic: ${DETERMINISTIC}"
 echo "  AMP:           ${USE_AMP}"
 
 cmd=(
@@ -95,11 +111,16 @@ cmd=(
     --oversampling-rarity-power 0.35
     --oversampling-strength 0.15
     --oversampling-max-sample-weight 1.6
+    --seed "${SEED}"
     --num-workers "${NUM_WORKERS}"
     --prefetch-factor "${PREFETCH_FACTOR}"
     --persistent-workers
     --results-dir "${RESULTS_DIR}"
 )
+
+if [[ "${DETERMINISTIC}" -eq 1 ]]; then
+    cmd+=(--deterministic)
+fi
 
 if [[ "${USE_AMP}" -eq 1 ]]; then
     cmd+=(--amp)
