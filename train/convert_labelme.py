@@ -10,6 +10,7 @@ import zipfile
 
 # Запускаем командой:
 # python train/convert_labelme.py [имя_архива.zip]
+# python train/convert_labelme.py upload_to_cvat_labelme.zip
 # Если имя архива не указано, будут обработаны все найденные архивы в папке Data_Output.
 
 # --- ГЛАВНЫЕ НАСТРОЙКИ ---
