@@ -4,11 +4,11 @@ set -euo pipefail
 usage() {
     echo "Usage: $0 [--results-dir DIR] [--epochs N] [--scale F] [--classes N] [--learning-rate LR] [--amp]"
     echo
-    echo "High-quality training preset (best config from 6-class ablation)."
+    echo "High-quality training preset (best run: ablation5_A_hybrid_sampler_plus_full)."
     echo "Defaults: epochs=50, batch-size=1, scale=0.1, classes=6, lr=5e-5, AMP=off"
 }
 
-RESULTS_DIR="results_quality_hybrid_sampler_plus"
+RESULTS_DIR="results_quality_best_ablation5_A"
 EPOCHS=50
 BATCH_SIZE=1
 SCALE=0.1
