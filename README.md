@@ -92,7 +92,7 @@ docker-compose down
 Эта команда запускает ваше веб-приложение. Важно использовать флаги `-v`, чтобы "пробросить" папки с данными и результатами с вашего компьютера внутрь контейнера.
 
 ```powershell
-docker run --gpus all -p 8000:8000 ` -v "${PWD}:/workspace/SSCloud" ` keiretsu/sscloud 
+docker run --gpus all -p 8000:8000 ` -v "${PWD}:/workspace/SSCloud" keiretsu/sscloud-service:v1 
 ```
 *   PowerShell понимает переменную `${PWD}` как "текущая рабочая директория"
 *   `--gpus all`: предоставляет контейнеру доступ к GPU. Если у вас нет GPU, уберите этот флаг.
