@@ -78,6 +78,10 @@ if [[ -z "${WANDB_MODE:-}" ]]; then
     export WANDB_MODE=offline
 fi
 
+if [[ "${DETERMINISTIC}" -eq 1 ]]; then
+    export CUBLAS_WORKSPACE_CONFIG=:4096:8
+fi
+
 START_TS=$(date +%s)
 START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S')
 
@@ -91,6 +95,9 @@ echo "  Classes:       ${CLASSES}"
 echo "  Learning rate: ${LEARNING_RATE}"
 echo "  Seed:          ${SEED}"
 echo "  Deterministic: ${DETERMINISTIC}"
+if [[ "${DETERMINISTIC}" -eq 1 ]]; then
+    echo "  CuBLAS config: ${CUBLAS_WORKSPACE_CONFIG}"
+fi
 echo "  AMP:           ${USE_AMP}"
 
 cmd=(
