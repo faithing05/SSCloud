@@ -31,7 +31,7 @@ run_experiment() {
 }
 
 # Iteration 7: verify class-6 improvement strategies with low risk to global Dice.
-COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 20 --batch-size 1 --scale 0.1 --classes 6 --num-workers 4 --prefetch-factor 2 --persistent-workers"
+COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 20 --batch-size 1 --scale 0.1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
 
 # A) Reference baseline
 run_experiment "A_Baseline_ref" \

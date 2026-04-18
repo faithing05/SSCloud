@@ -31,7 +31,7 @@ run_experiment() {
 }
 
 # Iteration 4: focus on best short-run candidates
-COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 10 --batch-size 1 --scale 0.1 --classes 6 --num-workers 4 --prefetch-factor 2 --persistent-workers"
+COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 10 --batch-size 1 --scale 0.1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
 
 # A) Baseline reference
 run_experiment "A_Baseline" \

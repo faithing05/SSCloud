@@ -30,7 +30,7 @@ run_experiment() {
     printf 'Stage duration: %02d:%02d:%02d\n' $((duration / 3600)) $(((duration % 3600) / 60)) $((duration % 60))
 }
 
-COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 10 --batch-size 1 --scale 0.1 --classes 6 --num-workers 4 --prefetch-factor 2 --persistent-workers"
+COMMON_ARGS="--use-transformer --use-attention --detailed-eval --epochs 10 --batch-size 1 --scale 0.1 --classes 9 --num-workers 4 --prefetch-factor 2 --persistent-workers"
 
 # A) Baseline
 run_experiment "A_Baseline" \
